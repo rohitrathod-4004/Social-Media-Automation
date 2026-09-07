@@ -25,11 +25,6 @@ const Layout = () => {
 
         {isMobileMenuOpen && <div className='fixed inset-0 bg-slate-900/50 z-40 md:hidden' onClick={()=> setisMobileMenuOpen(false)}/>}
 
-        
-
-
-
-
         <Sidebar isOpen={isMobileMenuOpen} setIsOpen={setisMobileMenuOpen}/>
 
         <div>
