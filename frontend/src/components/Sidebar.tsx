@@ -8,7 +8,7 @@ const Sidebar = ({isOpen , setIsOpen} : {isOpen: boolean , setIsOpen :(val : boo
         {name:'Dashboard' ,  icon:LayoutDashboardIcon , path:'/dashboard'},
         {name: "Accounts", icon: UserIcon, path: "/accounts"},
         {name: "Scheduler", icon: CalendarDaysIcon , path: "/schedule"},
-        {name: "AI Composer", icon: Wand2Icon , path: "/ai-composer"},
+        {name: "AI Composer", icon: Wand2Icon , path: "/aicomposer"},
     ]
 
     const location = useLocation()

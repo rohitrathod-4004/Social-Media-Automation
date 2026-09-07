@@ -27,7 +27,7 @@ const Layout = () => {
 
         <Sidebar isOpen={isMobileMenuOpen} setIsOpen={setisMobileMenuOpen}/>
 
-        <div>
+        <div className='flex min-w-0 flex-1 flex-col'>
             <header className='h-16 bg-white border-b border-slate-200 items-center px-4 md:px-8 gap-4 py-2'>
                 <button className='md:hidden p-2 -ml-2 text-slate-500' onClick={()=>setisMobileMenuOpen(true)}>
                     <MenuIcon className="size-6"/> 
