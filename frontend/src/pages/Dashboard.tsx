@@ -2,9 +2,6 @@ import { CheckCircleIcon, Share2Icon , ClockIcon , TrendingUpIcon , SendIcon , A
 import React, { useState, useEffect } from 'react'
 import {dummyPostsData , dummyAccountsData , dummyActivityData} from '../assets/assets'
 
-      
-
-
 const Dashboard = () => {
 
   const [stats , setStats] = useState({scheduled: 0, published: 0, connectedAccounts: 0});
