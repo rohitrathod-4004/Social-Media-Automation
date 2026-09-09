@@ -7,16 +7,13 @@ const pageTitles : Record<string , string> = {
     '/dashboard': 'Dashboard',
     '/accounts': 'Accounts',
     '/schedule': 'Scheduler',
-    '/aicomposer': 'AI Composer'
+    '/aicomposer': 'AI Composer'    
 } 
 
 const Layout = () => {
-
-
     const [isMobileMenuOpen, setisMobileMenuOpen] = useState(false);
     const location = useLocation();
     const title = pageTitles[location.pathname] || 'Social Automation';
-
 
   return (
     <div className='flex h-screen bg-slate-50'>
