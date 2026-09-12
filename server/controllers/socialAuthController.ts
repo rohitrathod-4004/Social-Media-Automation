@@ -6,8 +6,6 @@ import {Account} from "../models/Account.js";
 
 //Helper to ensure user has a zernio profile
 
-
-
 const getOrCreateZernioProfile = async (user:any) : Promise<String> => {
     try{
         const result = await zernio.profiles.listProfiles();   // list all profiles associated with the API key
