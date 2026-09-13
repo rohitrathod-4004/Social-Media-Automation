@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 
 const postSchema = new mongoose.Schema({
     user : {type: mongoose.Schema.Types.ObjectId, ref:"User" , required:true},
+    generation : {type: mongoose.Schema.Types.ObjectId, ref:"Generation"},
     content : {type:String , required:true},
     mediaUrl : {type:String},
     mediaType : {type:String , enum:["image", "video"]},

@@ -1,5 +1,5 @@
 import { PLATFORMS } from "../assets/assets";
-import { PlusIcon , AlertCircleIcon, CheckCircleIcon, UnplugIcon , XIcon , ExternalLinkIcon} from "lucide-react";
+import {   CheckCircleIcon, XIcon , ExternalLinkIcon} from "lucide-react";
 
 
 interface PlatformPickerModalProps {

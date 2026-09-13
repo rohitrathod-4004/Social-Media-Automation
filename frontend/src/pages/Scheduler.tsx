@@ -5,7 +5,7 @@ import { toast } from "react-hot-toast/headless";
 import api from "../api/axios";
 import { useNavigate } from "react-router-dom";
 import ScheduleAccountValidationModal from "../components/ScheduleAccountValidationModal";
-import { getMissingPlatforms } from "../utils/platformValidation";
+import { validatePostForPlatforms } from "../utils/platformValidation";
 
 const Scheduler = () => {
 
@@ -54,32 +54,37 @@ const Scheduler = () => {
 
   const handleSchedule = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (selectedPlatforms.length === 0) {
-          toast.error("Select at least one pltaform.")
-          return;
-        }
 
-        if (selectedPlatforms.length === 0) {
-          toast.error("Select at least one pltaform.")
-          return;
-        }
+        const validation = validatePostForPlatforms(
+          selectedPlatforms,
+          accounts,
+          {
+            file: mediaFile,
+          }
+        );
 
-        const missing = getMissingPlatforms(selectedPlatforms, accounts);
+        if (!validation.isValid) {
 
-        if (missing.length > 0) {
-          setMissingPlatforms(missing);
+          if (validation.errorType === "media") {
+              toast.error(validation.errorMessage ?? "Unable to schedule post.");
+              return;
+            }
+
+          if (validation.errorType === "platform") {
+            toast.error(validation.errorMessage ?? "Unable to schedule post.");
+              return;
+          }
+
+          setMissingPlatforms(validation.missingPlatforms);
           setShowAccountValidationModal(true);
           return;
         }
-    
+       
         if (!scheduledDate || !scheduledTime) {
           toast.error("Select date and time.")
           return;
         }
-        if (selectedPlatforms.includes('instagram') && !mediaFile) {
-          toast.error("Instagram requires an image or video");
-          return;
-        }
+    
         const scheduledFor = new Date(`${scheduledDate}T${scheduledTime}`).toISOString();
 
         const formData = new FormData();
@@ -216,7 +221,7 @@ return (
       </div >
 
       {/* Queue panels */}
-      <div className="flex-1 flex flex-col gap-6 min-w-0">
+      <div className="flex-1 min-h-0 flex flex-col gap-6 min-w-0">
         {/* Upcoming */}
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
           <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100">
@@ -224,7 +229,7 @@ return (
             <h3 className="text-slate-900 text-sm">Upcoming</h3>
             <span className="ml-auto text-xs font-bold bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded-full">{scheduled.length}</span>
           </div>
-          <div className="max-h-72 overflow-y-auto divide-y divide-slate-50">
+          <div className="h-48 min-h-0 shrink-0 overflow-y-scroll overscroll-contain divide-y divide-slate-50">
             {scheduled.length === 0 ? (
               <div className="py-10 text-center text-slate-400 text-sm">No posts scheduled yet</div>
             ) : (

@@ -1,6 +1,6 @@
 import { PlusIcon } from 'lucide-react'
-import React, { useEffect, useState } from 'react'
-import { dummyAccountsData, PLATFORMS } from '../assets/assets'
+import  { useEffect, useState } from 'react'
+import {  PLATFORMS } from '../assets/assets'
 import AccountList from '../components/AccountList'
 import PlatformPickerModal from '../components/PlatformpickerModal'
 import { toast } from 'react-hot-toast/headless'

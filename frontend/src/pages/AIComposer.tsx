@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { ArrowRightIcon, CalendarIcon, ClockIcon, HistoryIcon, Loader2Icon, TimerIcon, Wand2Icon, XIcon } from "lucide-react";
 import api from "../api/axios";
 import { PLATFORMS } from "../assets/assets";
-import { toast } from "react-hot-toast/headless";
+import { toast } from "react-hot-toast";
 import ScheduleAccountValidationModal from "../components/ScheduleAccountValidationModal";
-import { getMissingPlatforms } from "../utils/platformValidation";
+import { validatePostForPlatforms } from "../utils/platformValidation";
 import { useNavigate } from "react-router-dom";
 
 
@@ -12,7 +12,7 @@ const AIComposer = () => {
 
   const [prompt, setPrompt] = useState("");
   const [tone, setTone] = useState("Professional");
-  const [generateImage, setGenerateImage] = useState(false);
+  const [generateImage] = useState(false);
   const [loading, setLoading] = useState(false);
   const [generations, setGenerations] = useState<any[]>([]);
 
@@ -22,6 +22,9 @@ const AIComposer = () => {
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
   const [scheduling, setScheduling] = useState(false);
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+
+
 
   //until image generation is fixed, we will disable it and show a toast
   const [showImageUnavailable, setShowImageUnavailable] = useState(false);
@@ -53,7 +56,9 @@ const AIComposer = () => {
   }
 
   useEffect(() => {
-    toast("Note: Image generation may be temporarily unavailable due to API usage limits.")
+    toast("Note: Image generation may be temporarily unavailable due to API usage limits.", {
+      id: "image-generation-notice",
+    });
   }, [])
 
   useEffect(() => {
@@ -82,23 +87,31 @@ const AIComposer = () => {
   const handleSchedule = async () => {
     
     if (!activeScheduler) return;
-    if (selectedPlatforms.length === 0) {
-      toast.error("Select atleast one platform");
-      return;
+
+
+    const validation = validatePostForPlatforms(
+      selectedPlatforms,
+      accounts,
+      {
+        file: mediaFile,
+        url: activeScheduler.mediaUrl,
+        type: activeScheduler.mediaType,
+      }
+    );
+
+    if (!validation.isValid) {
+      if (
+            validation.errorType === "platform" ||
+            validation.errorType === "media"
+          ) {
+              toast.error(validation.errorMessage ?? "Unable to schedule post.");
+            return;
+          }
+
+          setMissingPlatforms(validation.missingPlatforms);
+          setShowAccountValidationModal(true);
+          return;
     }
-
-    if (selectedPlatforms.length === 0) {
-        toast.error("Select atleast one platform");
-        return;
-      }
-
-      const missing = getMissingPlatforms(selectedPlatforms, accounts);
-
-      if (missing.length > 0) {
-        setMissingPlatforms(missing);
-        setShowAccountValidationModal(true);
-        return;
-      }
 
     if (!scheduledDate || !scheduledTime) {
       toast.error("Select date and time");
@@ -108,21 +121,42 @@ const AIComposer = () => {
     const scheduledFor = new Date(`${scheduledDate}T${scheduledTime}`).toISOString();
     setScheduling(true);
     try {
-      await api.post("/api/posts", {
-        content: activeScheduler.content,
-        mediaUrl: activeScheduler.mediaUrl,
-        mediaType: activeScheduler.mediaType,
-        platforms: selectedPlatforms,
-        scheduledFor,
-        status: "scheduled"
-      });
+      if (mediaFile) {
+          const formData = new FormData();
+
+          formData.append("content", activeScheduler.content);
+          formData.append("scheduledFor", scheduledFor);
+          formData.append("status", "scheduled");
+          formData.append("platforms", JSON.stringify(selectedPlatforms));
+          formData.append("generation", activeScheduler._id);
+          formData.append("media", mediaFile);
+
+          await api.post("/api/posts", formData, {
+            headers: {
+              "Content-Type": "multipart/form-data",
+            },
+          });
+        } else {
+          await api.post("/api/posts", {
+            content: activeScheduler.content,
+            mediaUrl: activeScheduler.mediaUrl,
+            mediaType: activeScheduler.mediaType,
+            platforms: selectedPlatforms,
+            scheduledFor,
+            status: "scheduled",
+            generation: activeScheduler._id,
+          });
+        }
 
       toast.success("AI Post scheduled!");
+
+      await fetchGenerations();
 
       setActiveScheduler(null);
       setSelectedPlatforms([]);
       setScheduledDate("");
       setScheduledTime("");
+      setMediaFile(null);
 
     } catch (error: any) {
       toast.error(error?.response?.data?.message || error.message);
@@ -196,11 +230,20 @@ const AIComposer = () => {
                   </div>
                 )}
                 <div className="flex items-center gap-2 pt-2">
-                  <button
-                    onClick={() => setActiveScheduler(gen)}
-                    className="flex-1 bg-slate-100 hover:bg-red-500 hover:text-white text-slate-600 text-xs py-2.5 rounded-lg transition-all">
-                    Schedule Post
-                  </button>
+                  {gen.status === "scheduled" || gen.status === "published" ? (
+                    <span className="flex-1 text-center bg-slate-50 text-slate-400 text-xs py-2.5 rounded-lg">
+                      {gen.status === "published" ? "Already published" : "Already scheduled"}
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => {
+                          setMediaFile(null);
+                          setActiveScheduler(gen);
+                        }}
+                      className="flex-1 bg-slate-100 hover:bg-red-500 hover:text-white text-slate-600 text-xs py-2.5 rounded-lg transition-all">
+                      Schedule Post
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -253,18 +296,83 @@ const AIComposer = () => {
 
             <div className="flex items-center justify-between px-8 py-4 border-b border-slate-100 bg-slate-50/30">
               <h3 className="text-slate-900">Schedule Generation</h3>
-              <button onClick={() => setActiveScheduler(null)} className="p-2 rounded-full hover:bg-slate-100 text-slate-400 transition-colors">
+              <button onClick={() => {
+                                  setMediaFile(null);
+                                  setActiveScheduler(null);
+                                }}
+                                className="p-2 rounded-full hover:bg-slate-100 text-slate-400 transition-colors">
                 <XIcon className="size-5" />
               </button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-8 space-y-4">
               <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 space-y-4">
-                <p className="text-slate-800 text-sm leading-relaxed whitespace-pre-wrap">{activeScheduler.prompt}</p>
-              </div>
-              <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 space-y-4">
-                <p className="text-slate-800 text-sm leading-relaxed whitespace-pre-wrap">{activeScheduler.content}</p>
-                {activeScheduler.mediaUrl && <img src={activeScheduler.mediaUrl} alt="preview" className="w-full aspect-video object-cover rounded-xl border border-slate-200 shadow-sm" />}
+                <p className="text-slate-800 text-sm leading-relaxed whitespace-pre-wrap">
+                  {activeScheduler.content}
+                </p>
+
+                {activeScheduler.mediaUrl ? (
+                  <img
+                    src={activeScheduler.mediaUrl}
+                    alt="Generated preview"
+                    className="w-full aspect-video object-cover rounded-xl border border-slate-200 shadow-sm"
+                  />
+                ) : mediaFile ? (
+                  <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-white">
+                    <img
+                      src={URL.createObjectURL(mediaFile)}
+                      alt="Uploaded preview"
+                      className="w-full aspect-video object-cover"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => setMediaFile(null)}
+                      className="absolute top-2 right-2 size-7 bg-slate-900/60 hover:bg-slate-900/80 text-white rounded-full flex items-center justify-center"
+                    >
+                      <XIcon className="size-3.5" />
+                    </button>
+
+                    <label className="block text-center py-2 text-sm text-red-500 cursor-pointer hover:text-red-600">
+                      Replace image
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+
+                          if (file) {
+                            setMediaFile(file);
+                          }
+
+                          event.currentTarget.value = "";
+                        }}
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  <label className="flex items-center justify-center p-6 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:border-red-300 hover:bg-red-50/30 transition-all">
+                    <span className="text-sm text-slate-500">
+                      Add Image
+                    </span>
+
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+
+                        if (file) {
+                          setMediaFile(file);
+                        }
+
+                        event.currentTarget.value = "";
+                      }}
+                    />
+                  </label>
+                )}
               </div>
             </div>
 
@@ -308,6 +416,7 @@ const AIComposer = () => {
                 </div>
               </div>
               <button
+                type="button"
                 onClick={handleSchedule}
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-md bg-slate-200 text-slate-700 hover:bg-red-500 hover:text-white transition">
                 {scheduling ? <Loader2Icon className="size-4 animate-spin" /> : <TimerIcon className="size-4" />}
