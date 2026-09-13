@@ -41,7 +41,7 @@ export const addAccount = async (req: AuthRequest, res: Response) : Promise<void
 // DELETE /api/accounts/:id
 export const disconnectAccount = async (req: AuthRequest, res: Response) : Promise<void> => {
     try{
-        const account = await Account.findOne({id:req.params.id , user : req.user._id }); 
+        const account = await Account.findOne({_id:req.params.id , user : req.user._id }); 
         
         if(!account)
         {
