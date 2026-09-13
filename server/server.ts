@@ -9,9 +9,20 @@ import postRouter from "./routes/postRoute.js";
 import activityRouter from "./routes/activityRoutes.js";
 import { initScheduler } from "./services/schedulerService.js";
 
+const port = process.env.PORT || 3000;
+
 const app = express();
 
-app.use(cors());
+//app.use(cors());
+const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+
+app.use(
+  cors({
+    origin: frontendUrl,
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 
 const PORT = process.env.PORT || 3000;

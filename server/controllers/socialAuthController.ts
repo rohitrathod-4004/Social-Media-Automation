@@ -48,8 +48,10 @@ export const generateOauthUrl = async (req:AuthRequest, res:Response) : Promise<
         const {platform}=req.params;
         const profileId = await getOrCreateZernioProfile(req.user);
 
-        const origin = req.headers.origin ;
-        const redirectUrl = `${origin}/accounts`;
+        // const origin = req.headers.origin ;
+        // const redirectUrl = `${origin}/accounts`;
+        const frontendUrl =process.env.FRONTEND_URL || req.headers.origin || "http://localhost:5173";
+        const redirectUrl = `${frontendUrl}/accounts`;
 
         const result  = await zernio.connect.getConnectUrl({
             path:{platform: platform as any},
