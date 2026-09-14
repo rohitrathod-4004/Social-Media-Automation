@@ -7,13 +7,14 @@ export interface PostMedia {
   file?: File | null;
   url?: string | null;
   type?: string | null;
+  scheduledFor?: string | null;
 }
 
 export interface PlatformValidationResult {
   isValid: boolean;
   missingPlatforms: string[];
   errorMessage?: string;
-  errorType?: "platform" | "account" | "media";
+  errorType?: "platform" | "account" | "media" | "schedule";
 }
 
 export const validatePostForPlatforms = (
@@ -83,6 +84,22 @@ export const validatePostForPlatforms = (
       };
     }
   }
+
+  if (media?.scheduledFor) {
+  const scheduledDate = new Date(media.scheduledFor);
+
+  if (
+    Number.isNaN(scheduledDate.getTime()) ||
+    scheduledDate <= new Date()
+  ) {
+    return {
+      isValid: false,
+      missingPlatforms: [],
+      errorType: "schedule",
+      errorMessage: "Scheduled date and time must be in the future.",
+    };
+  }
+}
 
   return {
     isValid: true,

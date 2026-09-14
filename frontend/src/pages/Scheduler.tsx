@@ -23,6 +23,16 @@ const Scheduler = () => {
   const [missingPlatforms, setMissingPlatforms] = useState<string[]>([]);
   const navigate = useNavigate();
 
+  //for editing a scheduled post
+  const [editingPost, setEditingPost] = useState<any>(null);
+  const [editContent, setEditContent] = useState("");
+  const [editPlatforms, setEditPlatforms] = useState<string[]>([]);
+  const [editScheduledDate, setEditScheduledDate] = useState("");
+  const [editScheduledTime, setEditScheduledTime] = useState("");
+  const [editMediaFile, setEditMediaFile] = useState<File | null>(null);
+  const [removeEditMedia, setRemoveEditMedia] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
+
   const fetchAccounts = async () => {
   try {
     const { data } = await api.get("/api/accounts");
@@ -121,6 +131,106 @@ const Scheduler = () => {
           setLoading(false);
         }
   }
+
+  //helper function for scheduled post editing
+    const openEditModal = (post: any) => {
+      const scheduledDate = new Date(post.scheduledFor);
+
+      setEditingPost(post);
+      setEditContent(post.content);
+      setEditPlatforms(post.platforms);
+      setEditScheduledDate(
+        scheduledDate.toISOString().slice(0, 10)
+      );
+      setEditScheduledTime(
+        scheduledDate.toTimeString().slice(0, 5)
+      );
+      setEditMediaFile(null);
+      setRemoveEditMedia(false);
+    };
+
+    const handleEditPost = async () => {
+        if (!editingPost) return;
+
+        if (!editScheduledDate || !editScheduledTime) {
+          toast.error("Select date and time.");
+          return;
+        }
+
+        const scheduledFor = new Date(
+          `${editScheduledDate}T${editScheduledTime}`
+        ).toISOString();
+
+        const validation = validatePostForPlatforms(
+          editPlatforms,
+          accounts,
+          {
+            file: editMediaFile,
+            url: removeEditMedia ? null : editingPost.mediaUrl,
+            type: removeEditMedia ? null : editingPost.mediaType,
+          }
+        );
+
+        if (!validation.isValid) {
+          if (
+            validation.errorType === "platform" ||
+            validation.errorType === "media"
+          ) {
+            toast.error(
+              validation.errorMessage ?? "Unable to update post."
+            );
+            return;
+          }
+
+          setMissingPlatforms(validation.missingPlatforms);
+          setShowAccountValidationModal(true);
+          return;
+        }
+
+        const formData = new FormData();
+
+        formData.append("content", editContent);
+        formData.append("platforms", JSON.stringify(editPlatforms));
+        formData.append("scheduledFor", scheduledFor);
+        formData.append(
+          "mediaUrl",
+          removeEditMedia ? "" : editingPost.mediaUrl || ""
+        );
+        formData.append(
+          "mediaType",
+          removeEditMedia ? "" : editingPost.mediaType || ""
+        );
+        formData.append("removeMedia", String(removeEditMedia));
+
+        if (editMediaFile) {
+          formData.append("media", editMediaFile);
+        }
+
+        setEditLoading(true);
+
+        try {
+          await api.patch(`/api/posts/${editingPost._id}`, formData, {
+            headers: {
+              "Content-Type": "multipart/form-data",
+            },
+          });
+
+          toast.success("Scheduled post updated.");
+
+          setEditingPost(null);
+          setEditMediaFile(null);
+          setRemoveEditMedia(false);
+          await fetchPosts();
+        } catch (error: any) {
+          toast.error(
+            error?.response?.data?.message ||
+            error?.message ||
+            "Failed to update scheduled post."
+          );
+        } finally {
+          setEditLoading(false);
+        }
+      };
 
 return (
     <div className="flex flex-col lg:flex-row gap-6 h-full">
@@ -248,6 +358,9 @@ return (
                     </div>
                   </div>
                   <p className="text-sm text-slate-500 line-clamp-2 max-w-md">{post.content}</p>
+                  <button type="button" onClick={() => openEditModal(post)} className="mt-3 text-xs text-red-500 hover:text-red-600">
+                      Edit
+                  </button>
                 </div>
               ))
             )}
@@ -287,6 +400,167 @@ return (
           </div>
         </div>
       </div>
+
+      {editingPost && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg text-slate-900">
+                  Edit Scheduled Post
+                </h3>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingPost(null);
+                    setEditMediaFile(null);
+                    setRemoveEditMedia(false);
+                  }}
+                  className="p-2 rounded-full hover:bg-slate-100 text-slate-400"
+                >
+                  <XIcon className="size-5" />
+                </button>
+              </div>
+
+              <textarea
+                rows={5}
+                value={editContent}
+                onChange={(event) => setEditContent(event.target.value)}
+                className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl text-sm resize-none"
+              />
+
+              <div className="mt-5">
+                <label className="block text-xs text-slate-500 uppercase mb-2">
+                  Platforms
+                </label>
+
+                <div className="flex flex-wrap gap-2">
+                  {PLATFORMS.map((platform) => {
+                    const active = editPlatforms.includes(platform.id);
+
+                    return (
+                      <button
+                        key={platform.id}
+                        type="button"
+                        onClick={() =>
+                          setEditPlatforms((previous) =>
+                            previous.includes(platform.id)
+                              ? previous.filter((id) => id !== platform.id)
+                              : [...previous, platform.id]
+                          )
+                        }
+                        className={`p-2.5 rounded-md border ${
+                          active
+                            ? "bg-red-500 text-white border-red-500"
+                            : "bg-white text-slate-400 border-slate-200"
+                        }`}
+                      >
+                        <platform.icon className="size-4.5" />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-5">
+                <input
+                  type="date"
+                  value={editScheduledDate}
+                  onChange={(event) => setEditScheduledDate(event.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg"
+                />
+
+                <input
+                  type="time"
+                  value={editScheduledTime}
+                  onChange={(event) => setEditScheduledTime(event.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg"
+                />
+              </div>
+
+              <div className="mt-5">
+                {editMediaFile ? (
+                  <div>
+                    {editMediaFile.type.startsWith("image/") ? (
+                      <img
+                        src={URL.createObjectURL(editMediaFile)}
+                        alt="New media preview"
+                        className="w-full h-40 object-cover rounded-xl"
+                      />
+                    ) : (
+                      <video
+                        src={URL.createObjectURL(editMediaFile)}
+                        controls
+                        className="w-full h-40 object-cover rounded-xl"
+                      />
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setEditMediaFile(null)}
+                      className="mt-2 text-sm text-red-500"
+                    >
+                      Remove selected media
+                    </button>
+                  </div>
+                ) : editingPost.mediaUrl && !removeEditMedia ? (
+                  <div>
+                    {editingPost.mediaType === "image" ? (
+                      <img
+                        src={editingPost.mediaUrl}
+                        alt="Current media"
+                        className="w-full h-40 object-cover rounded-xl"
+                      />
+                    ) : (
+                      <video
+                        src={editingPost.mediaUrl}
+                        controls
+                        className="w-full h-40 object-cover rounded-xl"
+                      />
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setRemoveEditMedia(true)}
+                      className="mt-2 text-sm text-red-500"
+                    >
+                      Remove current media
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex items-center justify-center p-8 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer">
+                    <span className="text-sm text-slate-500">
+                      Add or replace media
+                    </span>
+
+                    <input
+                      type="file"
+                      accept="image/*,video/*"
+                      className="hidden"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+
+                        if (file) {
+                          setEditMediaFile(file);
+                          setRemoveEditMedia(false);
+                        }
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleEditPost}
+                disabled={editLoading}
+                className="w-full mt-6 rounded-lg bg-red-500 px-4 py-3 text-white"
+              >
+                {editLoading ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        )}
 
       {showAccountValidationModal && (
         <ScheduleAccountValidationModal

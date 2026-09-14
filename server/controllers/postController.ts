@@ -365,3 +365,198 @@ export const schedulePosts = async (
         });
     }
 };
+
+export const updateScheduledPost = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const post = await Post.findOne({
+      _id: req.params.id,
+      user: req.user._id,
+    });
+
+    if (!post) {
+      res.status(404).json({
+        message: "Post not found.",
+      });
+      return;
+    }
+
+    if (post.status !== "scheduled") {
+      res.status(409).json({
+        message: "Only scheduled posts can be edited.",
+      });
+      return;
+    }
+
+    const {
+      content,
+      platforms,
+      scheduledFor,
+      mediaUrl,
+      mediaType,
+      removeMedia,
+    } = req.body;
+
+    // Normalize platforms from FormData or JSON.
+    let parsedPlatforms: string[] = [];
+
+    if (Array.isArray(platforms)) {
+      parsedPlatforms = platforms;
+    } else if (typeof platforms === "string") {
+      try {
+        parsedPlatforms = JSON.parse(platforms);
+      } catch {
+        parsedPlatforms = platforms.split(",");
+      }
+    }
+
+    if (parsedPlatforms.length === 0) {
+      res.status(400).json({
+        message: "Please select at least one platform.",
+      });
+      return;
+    }
+
+    const supportedPlatforms = [
+      "twitter",
+      "linkedin",
+      "facebook",
+      "instagram",
+      "facebook_page",
+      "linkedin_page",
+      "instagram_business",
+    ] as const;
+
+    type SupportedPlatform = (typeof supportedPlatforms)[number];
+
+    const invalidPlatforms = parsedPlatforms.filter(
+      (platform) =>
+        !supportedPlatforms.includes(platform as SupportedPlatform)
+    );
+
+    if (invalidPlatforms.length > 0) {
+      res.status(400).json({
+        message: `Unsupported platform(s): ${invalidPlatforms.join(", ")}.`,
+      });
+      return;
+    }
+
+    const accountPlatforms =
+      parsedPlatforms as SupportedPlatform[];
+
+    const connectedAccounts = await Account.find({
+      user: req.user._id,
+      platform: { $in: accountPlatforms },
+      status: "connected",
+    }).select("platform");
+
+    const connectedPlatforms = new Set(
+      connectedAccounts.map((account) => account.platform)
+    );
+
+    const missingPlatforms = parsedPlatforms.filter(
+      (platform) => !connectedPlatforms.has(platform)
+    );
+
+    if (missingPlatforms.length > 0) {
+      res.status(400).json({
+        message: `Connect the required social account(s) before saving: ${missingPlatforms.join(", ")}.`,
+        missingPlatforms,
+      });
+      return;
+    }
+
+    const nextScheduledFor = new Date(scheduledFor);
+
+    if (
+      !scheduledFor ||
+      Number.isNaN(nextScheduledFor.getTime()) ||
+      nextScheduledFor <= new Date()
+    ) {
+      res.status(400).json({
+        message: "Scheduled date and time must be in the future.",
+      });
+      return;
+    }
+
+    let nextMediaUrl: string | undefined = post.mediaUrl;
+    let nextMediaType: "image" | "video" | undefined = post.mediaType;
+
+    // Explicit media removal.
+    if (removeMedia === "true" || removeMedia === true) {
+      nextMediaUrl = undefined;
+      nextMediaType = undefined;
+    }
+
+    // New upload replaces the existing media.
+    if (req.file) {
+      if (req.file.mimetype.startsWith("image/")) {
+        nextMediaType = "image";
+      } else if (req.file.mimetype.startsWith("video/")) {
+        nextMediaType = "video";
+      } else {
+        res.status(400).json({
+          message: "Unsupported media type.",
+        });
+        return;
+      }
+
+      const result = await new Promise<any>((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            resource_type: "auto",
+            folder: "social-scheduler",
+          },
+          (error, uploadedResult) => {
+            if (error) reject(error);
+            else resolve(uploadedResult);
+          }
+        );
+
+        stream.end(req.file!.buffer);
+      });
+
+      nextMediaUrl = result.secure_url;
+    }
+
+    // Existing media remains when no new file and no remove request.
+    if (mediaUrl && !req.file && removeMedia !== "true") {
+      nextMediaUrl = mediaUrl;
+      nextMediaType = mediaType;
+    }
+
+    if (accountPlatforms.includes("instagram")) {
+      if (!nextMediaUrl) {
+        res.status(400).json({
+          message:
+            "Instagram requires an image for this post. Please upload an image before saving.",
+        });
+        return;
+      }
+
+      if (nextMediaType !== "image") {
+        res.status(400).json({
+          message:
+            "Instagram image posts require an image. Please upload an image instead.",
+        });
+        return;
+      }
+    }
+
+    post.content = content;
+    post.platforms = accountPlatforms;
+    post.scheduledFor = nextScheduledFor;
+    post.mediaUrl = nextMediaUrl;
+    post.mediaType = nextMediaType;
+
+    await post.save();
+
+    res.json(post);
+  } catch (error: any) {
+    res.status(500).json({
+      message: error?.message || "Failed to update scheduled post.",
+    });
+  }
+};
