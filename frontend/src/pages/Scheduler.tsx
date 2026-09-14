@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { PLATFORMS } from "../assets/assets";
-import { CalendarIcon, ClockIcon, ArrowRightIcon, XIcon, CalendarDaysIcon, SendIcon } from "lucide-react";
-import { toast } from "react-hot-toast/headless";
+import { CalendarIcon, ClockIcon, ArrowRightIcon, XIcon, CalendarDaysIcon, SendIcon, PencilIcon, AlertTriangleIcon } from "lucide-react";
+import { toast } from "react-hot-toast";
 import api from "../api/axios";
 import { useNavigate } from "react-router-dom";
 import ScheduleAccountValidationModal from "../components/ScheduleAccountValidationModal";
@@ -32,6 +32,7 @@ const Scheduler = () => {
   const [editMediaFile, setEditMediaFile] = useState<File | null>(null);
   const [removeEditMedia, setRemoveEditMedia] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
+  const [selectedFailedPost, setSelectedFailedPost] = useState<any>(null);
 
   const fetchAccounts = async () => {
   try {
@@ -59,6 +60,15 @@ const Scheduler = () => {
 
   const scheduled = posts.filter((p) => p.status === "scheduled")
   const published = posts.filter((p) => p.status === "published")
+  const failed = posts.filter((p) => p.status === "failed")
+
+  const formatFailureReason = (reason: unknown) => {
+    if (typeof reason === "string") return reason;
+    if (reason && typeof reason === "object") {
+      return (reason as { message?: string }).message || JSON.stringify(reason);
+    }
+    return "Publishing failed without a recorded reason.";
+  }
 
   const togglePlatform = (id: string) => setSelectedPlatforms((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]))
 
@@ -215,7 +225,15 @@ const Scheduler = () => {
             },
           });
 
-          toast.success("Scheduled post updated.");
+          if (editingPost.status === "failed") {
+            await api.post(`/api/posts/${editingPost._id}/retry`);
+          }
+
+          toast.success(
+            editingPost.status === "failed"
+              ? "Failed post scheduled for retry."
+              : "Scheduled post updated."
+          );
 
           setEditingPost(null);
           setEditMediaFile(null);
@@ -231,6 +249,23 @@ const Scheduler = () => {
           setEditLoading(false);
         }
       };
+
+  const handleRetryFailedPost = async () => {
+    if (!selectedFailedPost) return;
+
+    try {
+      await api.post(`/api/posts/${selectedFailedPost._id}/retry`);
+      toast.success("Post scheduled for retry.");
+      setSelectedFailedPost(null);
+      await fetchPosts();
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.message ||
+        error?.message ||
+        "Failed to retry post."
+      );
+    }
+  };
 
 return (
     <div className="flex flex-col lg:flex-row gap-6 h-full">
@@ -331,15 +366,15 @@ return (
       </div >
 
       {/* Queue panels */}
-      <div className="flex-1 min-h-0 flex flex-col gap-6 min-w-0">
+      <div className="flex-1 min-w-0 flex flex-col gap-6">
         {/* Upcoming */}
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div className="flex h-80 shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white">
           <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100">
             <CalendarDaysIcon className="size-4 text-zinc-500" />
             <h3 className="text-slate-900 text-sm">Upcoming</h3>
             <span className="ml-auto text-xs font-bold bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded-full">{scheduled.length}</span>
           </div>
-          <div className="h-48 min-h-0 shrink-0 overflow-y-scroll overscroll-contain divide-y divide-slate-50">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain divide-y divide-slate-50 pb-4">
             {scheduled.length === 0 ? (
               <div className="py-10 text-center text-slate-400 text-sm">No posts scheduled yet</div>
             ) : (
@@ -358,8 +393,13 @@ return (
                     </div>
                   </div>
                   <p className="text-sm text-slate-500 line-clamp-2 max-w-md">{post.content}</p>
-                  <button type="button" onClick={() => openEditModal(post)} className="mt-3 text-xs text-red-500 hover:text-red-600">
-                      Edit
+                  <button
+                    type="button"
+                    onClick={() => openEditModal(post)}
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:border-red-300 hover:bg-red-100"
+                  >
+                      <PencilIcon className="size-3.5" />
+                      Edit post
                   </button>
                 </div>
               ))
@@ -367,14 +407,59 @@ return (
           </div>
         </div>
 
+        {/* Failed */}
+        <div className="flex-none overflow-hidden rounded-2xl border border-red-200 bg-red-50/30">
+          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-red-100">
+            <AlertTriangleIcon className="size-4 text-red-500" />
+            <h3 className="text-slate-900 text-sm">Failed</h3>
+            <span className="ml-auto text-xs font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded-full">{failed.length}</span>
+          </div>
+
+          <div className="divide-y divide-red-100">
+            {failed.length === 0 ? (
+              <div className="py-10 text-center text-slate-400 text-sm">No failed posts</div>
+            ) : (
+              failed.map((post) => (
+                <div
+                  key={post._id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSelectedFailedPost(post)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      setSelectedFailedPost(post);
+                    }
+                  }}
+                  className="flex cursor-pointer items-center gap-3 px-5 py-3 transition-colors hover:bg-red-100/60 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-300"
+                >
+                  <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-600">
+                    <AlertTriangleIcon className="size-4" />
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm text-slate-700">{post.content}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                      <span>{post.platforms.join(", ")}</span>
+                      <span aria-hidden="true">•</span>
+                      <span>{post.failedAt ? new Date(post.failedAt).toLocaleString() : "Failure time unavailable"}</span>
+                    </div>
+                  </div>
+
+                  <span className="shrink-0 text-xs font-medium text-red-600">View</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
         {/* Published */}
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-auto">
+        <div className="flex h-80 shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white">
           <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100">
             <SendIcon className="size-4 text-zinc-500" />
             <h3 className="text-slate-900 text-sm">Published</h3>
             <span className="ml-auto text-xs font-bold bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded-full">{published.length}</span>
           </div>
-          <div className="max-h-72 overflow-y-auto divide-y divide-slate-50">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain divide-y divide-slate-50 pb-4">
             {published.length === 0 ? (
               <div className="py-10 text-center text-slate-400 text-sm">No posts published yet</div>
             ) : (
@@ -400,6 +485,91 @@ return (
           </div>
         </div>
       </div>
+
+      {selectedFailedPost && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur">
+          <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-red-100 bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+              <div className="flex items-center gap-2">
+                <AlertTriangleIcon className="size-5 text-red-500" />
+                <h3 className="text-lg text-slate-900">Failed post</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedFailedPost(null)}
+                className="rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100"
+                aria-label="Close failed post details"
+              >
+                <XIcon className="size-5" />
+              </button>
+            </div>
+
+            <div className="space-y-5 overflow-y-auto p-6">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Content</p>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+                  {selectedFailedPost.content}
+                </p>
+              </div>
+
+              {selectedFailedPost.mediaUrl && (
+                selectedFailedPost.mediaType === "video" ? (
+                  <video
+                    src={selectedFailedPost.mediaUrl}
+                    controls
+                    className="max-h-72 w-full rounded-xl object-contain"
+                  />
+                ) : (
+                  <img
+                    src={selectedFailedPost.mediaUrl}
+                    alt="Failed post media"
+                    className="max-h-72 w-full rounded-xl object-contain"
+                  />
+                )
+              )}
+
+              <div className="grid gap-3 rounded-xl bg-slate-50 p-4 text-sm sm:grid-cols-2">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Platforms</p>
+                  <p className="mt-1 text-slate-700">{selectedFailedPost.platforms.join(", ")}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Scheduled for</p>
+                  <p className="mt-1 text-slate-700">
+                    {selectedFailedPost.scheduledFor
+                      ? new Date(selectedFailedPost.scheduledFor).toLocaleString()
+                      : "Not set"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-red-200 bg-red-50/50 p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-red-600">Failure reason</p>
+                <p className="mt-2 break-words text-sm leading-relaxed text-slate-700">
+                  {formatFailureReason(selectedFailedPost.failureReason)}
+                </p>
+                {selectedFailedPost.failedAt && (
+                  <p className="mt-2 text-xs text-slate-400">
+                    Failed: {new Date(selectedFailedPost.failedAt).toLocaleString()}
+                  </p>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  openEditModal(selectedFailedPost);
+                  setSelectedFailedPost(null);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-100"
+              >
+                <PencilIcon className="size-4" />
+                Edit & Retry
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {editingPost && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur">

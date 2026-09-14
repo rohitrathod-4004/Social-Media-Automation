@@ -383,9 +383,9 @@ export const updateScheduledPost = async (
       return;
     }
 
-    if (post.status !== "scheduled") {
+    if (post.status !== "scheduled" && post.status !== "failed") {
       res.status(409).json({
-        message: "Only scheduled posts can be edited.",
+        message: "Only scheduled or failed posts can be edited.",
       });
       return;
     }
@@ -452,8 +452,8 @@ export const updateScheduledPost = async (
       status: "connected",
     }).select("platform");
 
-    const connectedPlatforms = new Set(
-      connectedAccounts.map((account) => account.platform)
+    const connectedPlatforms = new Set<string>(
+      connectedAccounts.map((account) => String(account.platform))
     );
 
     const missingPlatforms = parsedPlatforms.filter(
@@ -481,8 +481,13 @@ export const updateScheduledPost = async (
       return;
     }
 
-    let nextMediaUrl: string | undefined = post.mediaUrl;
-    let nextMediaType: "image" | "video" | undefined = post.mediaType;
+    let nextMediaUrl: string | undefined = post.mediaUrl
+      ? String(post.mediaUrl)
+      : undefined;
+    let nextMediaType: "image" | "video" | undefined =
+      post.mediaType === "image" || post.mediaType === "video"
+        ? post.mediaType
+        : undefined;
 
     // Explicit media removal.
     if (removeMedia === "true" || removeMedia === true) {
@@ -557,6 +562,94 @@ export const updateScheduledPost = async (
   } catch (error: any) {
     res.status(500).json({
       message: error?.message || "Failed to update scheduled post.",
+    });
+  }
+};
+
+export const retryFailedPost = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const post = await Post.findOne({
+      _id: req.params.id,
+      user: req.user._id,
+    });
+
+    if (!post) {
+      res.status(404).json({ message: "Post not found." });
+      return;
+    }
+
+    if (post.status !== "failed") {
+      res.status(409).json({
+        message: "Only failed posts can be retried.",
+      });
+      return;
+    }
+
+    if (!post.scheduledFor || post.scheduledFor <= new Date()) {
+      res.status(400).json({
+        message: "The scheduled date and time must be in the future before retrying.",
+      });
+      return;
+    }
+
+    if (!post.platforms || post.platforms.length === 0) {
+      res.status(400).json({
+        message: "At least one platform is required before retrying.",
+      });
+      return;
+    }
+
+    const connectedAccounts = await Account.find({
+      user: req.user._id,
+      platform: { $in: post.platforms },
+      status: "connected",
+    }).select("platform");
+
+    const connectedPlatforms = new Set(
+      connectedAccounts.map((account) => account.platform),
+    );
+
+    const missingPlatforms = post.platforms.filter(
+      (platform) => !connectedPlatforms.has(platform),
+    );
+
+    if (missingPlatforms.length > 0) {
+      res.status(400).json({
+        message: `Connect the required social account(s) before retrying: ${missingPlatforms.join(", ")}.`,
+        missingPlatforms,
+      });
+      return;
+    }
+
+    if (post.platforms.includes("instagram")) {
+      if (!post.mediaUrl) {
+        res.status(400).json({
+          message: "Instagram requires an image for this post before retrying.",
+        });
+        return;
+      }
+
+      if (post.mediaType !== "image") {
+        res.status(400).json({
+          message: "Instagram image posts require an image before retrying.",
+        });
+        return;
+      }
+    }
+
+    post.status = "scheduled";
+    post.failureReason = undefined;
+    post.failedAt = undefined;
+    post.retryCount = (post.retryCount || 0) + 1;
+
+    const updatedPost = await post.save();
+    res.json(updatedPost);
+  } catch (err: any) {
+    res.status(500).json({
+      message: err?.message || "Failed to retry post.",
     });
   }
 };

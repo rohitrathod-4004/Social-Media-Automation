@@ -98,7 +98,11 @@ const Dashboard = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2 mb-1">
                     <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600">Published</span>
-                    <span className="text-xs text-slate-400 shrink-0">{new Date(activity.createdAt).toLocaleString()}</span>
+                    <span className="text-xs text-slate-400 shrink-0">
+                      {activity.createdAt && !Number.isNaN(new Date(activity.createdAt).getTime())
+                        ? new Date(activity.createdAt).toLocaleString()
+                        : "Date unavailable"}
+                    </span>
                   </div>
                   <p className="text-sm text-slate-600">{activity.description}</p>
                 </div>

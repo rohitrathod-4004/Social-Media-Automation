@@ -13,6 +13,9 @@ const postSchema = new mongoose.Schema({
             enum:["twitter", "linkedin", "facebook", "instagram" , "facebook_page","linkedin_page","instagram_business"]
         }]
     },
+    failureReason: { type: String },
+    failedAt: { type: Date },
+    retryCount: { type: Number, default: 0 },
     status:{type:String  , enum:["draft", "scheduled", "published", "failed"] , default:"scheduled"},
 
 } , {timestamps:true});
