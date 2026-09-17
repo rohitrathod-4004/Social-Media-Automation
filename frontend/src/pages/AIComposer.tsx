@@ -165,6 +165,48 @@ const AIComposer = () => {
     }
   }
   
+    const handleSaveDraft = async () => {
+      if (!activeScheduler) return;
+
+      setScheduling(true);
+      try {
+        if (mediaFile) {
+          const formData = new FormData();
+          formData.append("content", activeScheduler.content);
+          formData.append("status", "draft");
+          formData.append("platforms", JSON.stringify(selectedPlatforms));
+          formData.append("generation", activeScheduler._id);
+          formData.append("media", mediaFile);
+
+          await api.post("/api/posts", formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+        } else {
+          await api.post("/api/posts", {
+            content: activeScheduler.content,
+            mediaUrl: activeScheduler.mediaUrl,
+            mediaType: activeScheduler.mediaType,
+            platforms: selectedPlatforms,
+            status: "draft",
+            generation: activeScheduler._id,
+          });
+        }
+
+        toast.success("Saved as draft!");
+        await fetchGenerations();
+
+        setActiveScheduler(null);
+        setSelectedPlatforms([]);
+        setScheduledDate("");
+        setScheduledTime("");
+        setMediaFile(null);
+      } catch (error: any) {
+        toast.error(error?.response?.data?.message || "Failed to save draft.");
+      } finally {
+        setScheduling(false);
+      }
+    };
+
   return (
     <div>
       {/* Input Section */}
@@ -230,18 +272,23 @@ const AIComposer = () => {
                   </div>
                 )}
                 <div className="flex items-center gap-2 pt-2">
-                  {gen.status === "scheduled" || gen.status === "published" ? (
-                    <span className="flex-1 text-center bg-slate-50 text-slate-400 text-xs py-2.5 rounded-lg">
-                      {gen.status === "published" ? "Already published" : "Already scheduled"}
-                    </span>
-                  ) : (
+                  {gen.postStatus === null ? (
                     <button
                       onClick={() => {
                           setMediaFile(null);
                           setActiveScheduler(gen);
                         }}
                       className="flex-1 bg-slate-100 hover:bg-red-500 hover:text-white text-slate-600 text-xs py-2.5 rounded-lg transition-all">
-                      Schedule Post
+                      Create Post
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => navigate(`/scheduler?postId=${gen.postId}`)}
+                      className="flex-1 text-center bg-slate-50 text-slate-500 border border-slate-200 hover:bg-slate-100 text-xs py-2.5 rounded-lg transition-all">
+                      {gen.postStatus === "draft" ? "Open Draft" : 
+                       gen.postStatus === "scheduled" ? "View Scheduled" : 
+                       gen.postStatus === "failed" ? "View Failed" : 
+                       "View Published"}
                     </button>
                   )}
                 </div>
@@ -380,7 +427,7 @@ const AIComposer = () => {
               {/* Options */}
               <div>
                 <div>
-                  <label className="block text-sxs text-slate-600 uppercase tracking-widest mb-4" >Select Channels</label>
+                  <label className="block text-sxs text-slate-600 uppercase tracking-widest mb-4" >Select Channels (optional for draft)</label>
                   <div className="flex flex-wrap gap-2">
                     {PLATFORMS.map((p) => {
                       const active = selectedPlatforms.includes(p.id)
@@ -415,13 +462,23 @@ const AIComposer = () => {
                   </div>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={handleSchedule}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-md bg-slate-200 text-slate-700 hover:bg-red-500 hover:text-white transition">
-                {scheduling ? <Loader2Icon className="size-4 animate-spin" /> : <TimerIcon className="size-4" />}
-                Schedule Post
-              </button>
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  type="button"
+                  onClick={handleSaveDraft}
+                  disabled={scheduling}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-md border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition">
+                  {scheduling ? <Loader2Icon className="size-4 animate-spin" /> : "Save Draft"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSchedule}
+                  disabled={scheduling}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-md bg-slate-200 text-slate-700 hover:bg-red-500 hover:text-white transition">
+                  {scheduling ? <Loader2Icon className="size-4 animate-spin" /> : <TimerIcon className="size-4" />}
+                  Schedule Post
+                </button>
+              </div>
             </div>
 
           </div>

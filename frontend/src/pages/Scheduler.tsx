@@ -3,7 +3,7 @@ import { PLATFORMS } from "../assets/assets";
 import { CalendarIcon, ClockIcon, ArrowRightIcon, XIcon, CalendarDaysIcon, SendIcon, PencilIcon, AlertTriangleIcon } from "lucide-react";
 import { toast } from "react-hot-toast";
 import api from "../api/axios";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import ScheduleAccountValidationModal from "../components/ScheduleAccountValidationModal";
 import { validatePostForPlatforms } from "../utils/platformValidation";
 
@@ -22,6 +22,7 @@ const Scheduler = () => {
   const [showAccountValidationModal, setShowAccountValidationModal] = useState(false);
   const [missingPlatforms, setMissingPlatforms] = useState<string[]>([]);
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   //for editing a scheduled post
   const [editingPost, setEditingPost] = useState<any>(null);
@@ -57,11 +58,33 @@ const Scheduler = () => {
     fetchAccounts();
     const interval = setInterval(async () => await fetchPosts(), 10000);
     return () => clearInterval(interval);
-  }, [])
+  }, []);
+
+  useEffect(() => {
+    const postId = searchParams.get("postId");
+    if (postId && posts.length > 0) {
+      const targetPost = posts.find((p) => p._id === postId);
+      if (targetPost && !editingPost && !selectedFailedPost) {
+        if (targetPost.status === "failed") {
+          setSelectedFailedPost(targetPost);
+        } else if (targetPost.status === "draft" || targetPost.status === "scheduled") {
+          openEditModal(targetPost);
+        } else if (targetPost.status === "published") {
+          setTimeout(() => {
+            const el = document.getElementById(`post-${targetPost._id}`);
+            if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+          }, 100);
+        }
+        searchParams.delete("postId");
+        setSearchParams(searchParams, { replace: true });
+      }
+    }
+  }, [posts, searchParams, setSearchParams, editingPost, selectedFailedPost]);
 
   const scheduled = posts.filter((p) => p.status === "scheduled")
   const published = posts.filter((p) => p.status === "published")
   const failed = posts.filter((p) => p.status === "failed")
+  const drafts = posts.filter((p) => p.status === "draft")
 
   const formatFailureReason = (reason: unknown) => {
     if (typeof reason === "string") return reason;
@@ -145,64 +168,78 @@ const Scheduler = () => {
 
   //helper function for scheduled post editing
   const openEditModal = (post: any) => {
-    const scheduledDate = new Date(post.scheduledFor);
+    let d = "";
+    let t = "";
+    if (post.scheduledFor) {
+      const scheduledDate = new Date(post.scheduledFor);
+      d = scheduledDate.toISOString().slice(0, 10);
+      t = scheduledDate.toTimeString().slice(0, 5);
+    }
 
     setEditingPost(post);
     setEditContent(post.content);
     setEditPlatforms(post.platforms);
-    setEditScheduledDate(
-      scheduledDate.toISOString().slice(0, 10)
-    );
-    setEditScheduledTime(
-      scheduledDate.toTimeString().slice(0, 5)
-    );
+    setEditScheduledDate(d);
+    setEditScheduledTime(t);
     setEditMediaFile(null);
     setRemoveEditMedia(false);
   };
 
-  const handleEditPost = async () => {
+  const handleEditPost = async (finalStatus: "scheduled" | "draft") => {
     if (!editingPost) return;
 
-    if (!editScheduledDate || !editScheduledTime) {
-      toast.error("Select date and time.");
-      return;
-    }
+    let scheduledFor = "";
 
-    const scheduledFor = new Date(
-      `${editScheduledDate}T${editScheduledTime}`
-    ).toISOString();
-
-    const validation = validatePostForPlatforms(
-      editPlatforms,
-      accounts,
-      {
-        file: editMediaFile,
-        url: removeEditMedia ? null : editingPost.mediaUrl,
-        type: removeEditMedia ? null : editingPost.mediaType,
-      }
-    );
-
-    if (!validation.isValid) {
-      if (
-        validation.errorType === "platform" ||
-        validation.errorType === "media"
-      ) {
-        toast.error(
-          validation.errorMessage ?? "Unable to update post."
-        );
+    if (finalStatus === "scheduled") {
+      if (!editScheduledDate || !editScheduledTime) {
+        toast.error("Select date and time.");
         return;
       }
-
-      setMissingPlatforms(validation.missingPlatforms);
-      setShowAccountValidationModal(true);
-      return;
+  
+      scheduledFor = new Date(
+        `${editScheduledDate}T${editScheduledTime}`
+      ).toISOString();
+  
+      const validation = validatePostForPlatforms(
+        editPlatforms,
+        accounts,
+        {
+          file: editMediaFile,
+          url: removeEditMedia ? null : editingPost.mediaUrl,
+          type: removeEditMedia ? null : editingPost.mediaType,
+        }
+      );
+  
+      if (!validation.isValid) {
+        if (
+          validation.errorType === "platform" ||
+          validation.errorType === "media"
+        ) {
+          toast.error(
+            validation.errorMessage ?? "Unable to update post."
+          );
+          return;
+        }
+  
+        setMissingPlatforms(validation.missingPlatforms);
+        setShowAccountValidationModal(true);
+        return;
+      }
+    } else {
+        if (editScheduledDate && editScheduledTime) {
+           scheduledFor = new Date(
+             `${editScheduledDate}T${editScheduledTime}`
+           ).toISOString();
+        }
     }
 
     const formData = new FormData();
 
     formData.append("content", editContent);
     formData.append("platforms", JSON.stringify(editPlatforms));
-    formData.append("scheduledFor", scheduledFor);
+    if (scheduledFor) {
+        formData.append("scheduledFor", scheduledFor);
+    }
     formData.append(
       "mediaUrl",
       removeEditMedia ? "" : editingPost.mediaUrl || ""
@@ -212,6 +249,7 @@ const Scheduler = () => {
       removeEditMedia ? "" : editingPost.mediaType || ""
     );
     formData.append("removeMedia", String(removeEditMedia));
+    formData.append("status", finalStatus);
 
     if (editMediaFile) {
       formData.append("media", editMediaFile);
@@ -226,12 +264,14 @@ const Scheduler = () => {
         },
       });
 
-      if (editingPost.status === "failed") {
+      if (editingPost.status === "failed" && finalStatus === "scheduled") {
         await api.post(`/api/posts/${editingPost._id}/retry`);
       }
 
       toast.success(
-        editingPost.status === "failed"
+        finalStatus === "draft"
+          ? "Draft updated."
+          : editingPost.status === "failed"
           ? "Failed post scheduled for retry."
           : "Scheduled post updated."
       );
@@ -244,7 +284,7 @@ const Scheduler = () => {
       toast.error(
         error?.response?.data?.message ||
         error?.message ||
-        "Failed to update scheduled post."
+        "Failed to update post."
       );
     } finally {
       setEditLoading(false);
@@ -368,6 +408,46 @@ const Scheduler = () => {
 
       {/* Queue panels */}
       <div className="flex-1 min-w-0 flex flex-col gap-6">
+        {/* Drafts */}
+        <div className="flex h-80 shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100">
+            <PencilIcon className="size-4 text-zinc-500" />
+            <h3 className="text-slate-900 text-sm">Drafts</h3>
+            <span className="ml-auto text-xs font-bold bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded-full">{drafts.length}</span>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain divide-y divide-slate-50 pb-4">
+            {drafts.length === 0 ? (
+              <div className="py-10 text-center text-slate-400 text-sm">No drafts yet</div>
+            ) : (
+              drafts.map((post) => (
+                <div id={`post-${post._id}`} key={post._id} className="px-5 py-4 hover:bg-slate-50/60 transition-colors">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex gap-1.5 items-center">
+                      {post.platforms.map((pl: string) => {
+                        const meta = PLATFORMS.find((p) => p.id === pl);
+                        return meta ? <meta.icon key={pl} className="size-3.5 text-slate-400" /> : null;
+                      })}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {post.mediaType && <span className="text-xs bg-slate-100 text-slate-600 border border-slate-200 px-1.5 py-0.5 rounded-md font-semibold capitalize">{post.mediaType}</span>}
+                      <span className="text-xs text-slate-400">Draft</span>
+                    </div>
+                  </div>
+                  <p className="text-sm text-slate-500 line-clamp-2 max-w-md">{post.content}</p>
+                  <button
+                    type="button"
+                    onClick={() => openEditModal(post)}
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-100"
+                  >
+                    <PencilIcon className="size-3.5" />
+                    Edit Draft
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
         {/* Upcoming */}
         <div className="flex h-80 shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white">
           <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100">
@@ -380,7 +460,7 @@ const Scheduler = () => {
               <div className="py-10 text-center text-slate-400 text-sm">No posts scheduled yet</div>
             ) : (
               scheduled.map((post) => (
-                <div key={post._id} className="px-5 py-4 hover:bg-slate-50/60 transition-colors">
+                <div id={`post-${post._id}`} key={post._id} className="px-5 py-4 hover:bg-slate-50/60 transition-colors">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex gap-1.5 items-center">
                       {post.platforms.map((pl: string) => {
@@ -422,6 +502,7 @@ const Scheduler = () => {
             ) : (
               failed.map((post) => (
                 <div
+                  id={`post-${post._id}`}
                   key={post._id}
                   role="button"
                   tabIndex={0}
@@ -465,7 +546,7 @@ const Scheduler = () => {
               <div className="py-10 text-center text-slate-400 text-sm">No posts published yet</div>
             ) : (
               published.map((post) => (
-                <div key={post._id} className="px-5 py-4 hover:bg-slate-50/60 transition-colors">
+                <div id={`post-${post._id}`} key={post._id} className="px-5 py-4 hover:bg-slate-50/60 transition-colors">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex gap-1.5 items-center">
                       {post.platforms.map((pl: string) => {
@@ -720,14 +801,26 @@ const Scheduler = () => {
               )}
             </div>
 
-            <button
-              type="button"
-              onClick={handleEditPost}
-              disabled={editLoading}
-              className="w-full mt-6 rounded-lg bg-red-500 px-4 py-3 text-white"
-            >
-              {editLoading ? "Saving..." : "Save Changes"}
-            </button>
+            <div className="grid grid-cols-2 gap-4 mt-6">
+              {editingPost?.status === "draft" && (
+                <button
+                  type="button"
+                  onClick={() => handleEditPost("draft")}
+                  disabled={editLoading}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-4 py-3 text-slate-700 hover:bg-slate-50"
+                >
+                  {editLoading ? "Saving..." : "Save Draft"}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => handleEditPost("scheduled")}
+                disabled={editLoading}
+                className={`${editingPost?.status === "draft" ? "w-full" : "w-full col-span-2"} rounded-lg bg-red-500 px-4 py-3 text-white`}
+              >
+                {editLoading ? "Saving..." : editingPost?.status === "draft" ? "Schedule Post" : "Save Changes"}
+              </button>
+            </div>
           </div>
         </div>
       )}

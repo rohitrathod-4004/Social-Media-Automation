@@ -164,17 +164,21 @@ export const getGenerations = async (
         const relatedPosts = await Post.find({
             user: req.user._id,
             generation: { $in: generationIds },
-        }).select("generation status");
+        }).select("generation status _id");
 
-        const statusByGeneration = new Map(
-            relatedPosts.map((post) => [String(post.generation), post.status]),
+        const postMap = new Map(
+            relatedPosts.map((post) => [String(post.generation), { status: post.status, _id: post._id }]),
         );
 
         res.json(
-            generations.map((generation) => ({
-                ...generation.toObject(),
-                status: statusByGeneration.get(String(generation._id)) ?? "draft",
-            })),
+            generations.map((generation) => {
+                const postData = postMap.get(String(generation._id));
+                return {
+                    ...generation.toObject(),
+                    postStatus: postData ? postData.status : null,
+                    postId: postData ? postData._id : null,
+                };
+            }),
         );
     } catch (err: any) {
         res
@@ -213,12 +217,12 @@ export const schedulePosts = async (
             const existingPost = await Post.findOne({
                 user: req.user._id,
                 generation,
-                status: { $in: ["scheduled", "published"] },
-            }).select("status");
+            }).select("status _id");
 
             if (existingPost) {
                 res.status(409).json({
-                    message: `This generation has already been ${existingPost.status}.`,
+                    message: "A post for this generation already exists. Please edit the existing post.",
+                    postId: existingPost._id
                 });
                 return;
             }
@@ -250,51 +254,66 @@ export const schedulePosts = async (
             }
         }
 
-        if (parsedPlatforms.length === 0) {
-            res.status(400).json({
-                message: "Please select at least one platform.",
-            });
-            return;
-        }
-
-        // Reject platform names that are not allowed by Account/Post schemas.
-        const invalidPlatforms = parsedPlatforms.filter(
-            (platform) => !supportedPlatforms.includes(platform as SupportedPlatform),
-        );
-
-        if (invalidPlatforms.length > 0) {
-            res.status(400).json({
-                message: `Unsupported platform(s): ${invalidPlatforms.join(", ")}.`,
-            });
-            return;
-        }
-
-        const accountPlatforms = parsedPlatforms as SupportedPlatform[];
-
-        const connectedAccounts = await Account.find({
-            user: req.user._id,
-            platform: { $in: accountPlatforms },
-            status: "connected",
-        }).select("platform");
-
-        const connectedPlatforms = new Set<string>(
-            connectedAccounts.map((account) => account.platform),
-        );
-
-        const missingPlatforms = parsedPlatforms.filter(
-            (platform) => !connectedPlatforms.has(platform),
-        );
-
-        if (missingPlatforms.length > 0) {
-            res.status(400).json({
-                message: `Connect the required social account(s) before scheduling: ${missingPlatforms.join(", ")}.`,
-                missingPlatforms,
-            });
-            return;
-        }
-
+        const finalStatus = status === "draft" ? "draft" : "scheduled";
         let mediaUrl: string | undefined = req.body.mediaUrl;
         let mediaType: "image" | "video" | undefined = req.body.mediaType;
+        let accountPlatforms: SupportedPlatform[] = [];
+
+        if (finalStatus === "scheduled") {
+            if (parsedPlatforms.length === 0) {
+                res.status(400).json({
+                    message: "Please select at least one platform.",
+                });
+                return;
+            }
+
+            // Reject platform names that are not allowed by Account/Post schemas.
+            const invalidPlatforms = parsedPlatforms.filter(
+                (platform) => !supportedPlatforms.includes(platform as SupportedPlatform),
+            );
+
+            if (invalidPlatforms.length > 0) {
+                res.status(400).json({
+                    message: `Unsupported platform(s): ${invalidPlatforms.join(", ")}.`,
+                });
+                return;
+            }
+
+            accountPlatforms = parsedPlatforms as SupportedPlatform[];
+
+            const connectedAccounts = await Account.find({
+                user: req.user._id,
+                platform: { $in: accountPlatforms },
+                status: "connected",
+            }).select("platform");
+
+            const connectedPlatforms = new Set<string>(
+                connectedAccounts.map((account) => account.platform),
+            );
+
+            const missingPlatforms = parsedPlatforms.filter(
+                (platform) => !connectedPlatforms.has(platform),
+            );
+
+            if (missingPlatforms.length > 0) {
+                res.status(400).json({
+                    message: `Connect the required social account(s) before scheduling: ${missingPlatforms.join(", ")}.`,
+                    missingPlatforms,
+                });
+                return;
+            }
+
+            const nextScheduledFor = new Date(scheduledFor);
+            if (!scheduledFor || Number.isNaN(nextScheduledFor.getTime()) || nextScheduledFor <= new Date()) {
+                res.status(400).json({
+                    message: "Scheduled date and time must be in the future.",
+                });
+                return;
+            }
+        } else {
+             // For drafts, we just accept whatever platforms they sent, as long as they are valid enum strings.
+             accountPlatforms = parsedPlatforms.filter(p => supportedPlatforms.includes(p as SupportedPlatform)) as SupportedPlatform[];
+        }
 
         // Detect manually uploaded media before Cloudinary upload.
         if (req.file) {
@@ -306,7 +325,7 @@ export const schedulePosts = async (
         }
 
         // Instagram requires an image.
-        if (parsedPlatforms.includes("instagram")) {
+        if (finalStatus === "scheduled" && accountPlatforms.includes("instagram")) {
             if (!req.file && !mediaUrl) {
                 res.status(400).json({
                     message:
@@ -354,8 +373,8 @@ export const schedulePosts = async (
             platforms: accountPlatforms,
             mediaUrl,
             mediaType,
-            scheduledFor,
-            status,
+            scheduledFor: finalStatus === "scheduled" ? scheduledFor : undefined,
+            status: finalStatus,
         });
 
         res.status(201).json(post);
@@ -383,9 +402,9 @@ export const updateScheduledPost = async (
       return;
     }
 
-    if (post.status !== "scheduled" && post.status !== "failed") {
+    if (post.status !== "scheduled" && post.status !== "failed" && post.status !== "draft") {
       res.status(409).json({
-        message: "Only scheduled or failed posts can be edited.",
+        message: "Only scheduled, failed, or draft posts can be edited.",
       });
       return;
     }
@@ -397,7 +416,18 @@ export const updateScheduledPost = async (
       mediaUrl,
       mediaType,
       removeMedia,
+      status
     } = req.body;
+
+    const finalStatus = status === "draft" ? "draft" : "scheduled";
+
+    // DO NOT allow reverting a scheduled/failed post to draft.
+    if ((post.status === "scheduled" || post.status === "failed") && finalStatus === "draft") {
+      res.status(400).json({
+        message: "Cannot revert a scheduled or failed post to draft.",
+      });
+      return;
+    }
 
     // Normalize platforms from FormData or JSON.
     let parsedPlatforms: string[] = [];
@@ -412,13 +442,6 @@ export const updateScheduledPost = async (
       }
     }
 
-    if (parsedPlatforms.length === 0) {
-      res.status(400).json({
-        message: "Please select at least one platform.",
-      });
-      return;
-    }
-
     const supportedPlatforms = [
       "twitter",
       "linkedin",
@@ -430,55 +453,67 @@ export const updateScheduledPost = async (
     ] as const;
 
     type SupportedPlatform = (typeof supportedPlatforms)[number];
+    let accountPlatforms: SupportedPlatform[] = [];
+    let nextScheduledFor: Date | undefined = undefined;
 
-    const invalidPlatforms = parsedPlatforms.filter(
-      (platform) =>
-        !supportedPlatforms.includes(platform as SupportedPlatform)
-    );
+    if (finalStatus === "scheduled") {
+      if (parsedPlatforms.length === 0) {
+        res.status(400).json({
+          message: "Please select at least one platform.",
+        });
+        return;
+      }
 
-    if (invalidPlatforms.length > 0) {
-      res.status(400).json({
-        message: `Unsupported platform(s): ${invalidPlatforms.join(", ")}.`,
-      });
-      return;
-    }
+      const invalidPlatforms = parsedPlatforms.filter(
+        (platform) => !supportedPlatforms.includes(platform as SupportedPlatform)
+      );
 
-    const accountPlatforms =
-      parsedPlatforms as SupportedPlatform[];
+      if (invalidPlatforms.length > 0) {
+        res.status(400).json({
+          message: `Unsupported platform(s): ${invalidPlatforms.join(", ")}.`,
+        });
+        return;
+      }
 
-    const connectedAccounts = await Account.find({
-      user: req.user._id,
-      platform: { $in: accountPlatforms },
-      status: "connected",
-    }).select("platform");
+      accountPlatforms = parsedPlatforms as SupportedPlatform[];
 
-    const connectedPlatforms = new Set<string>(
-      connectedAccounts.map((account) => String(account.platform))
-    );
+      const connectedAccounts = await Account.find({
+        user: req.user._id,
+        platform: { $in: accountPlatforms },
+        status: "connected",
+      }).select("platform");
 
-    const missingPlatforms = parsedPlatforms.filter(
-      (platform) => !connectedPlatforms.has(platform)
-    );
+      const connectedPlatforms = new Set<string>(
+        connectedAccounts.map((account) => String(account.platform))
+      );
 
-    if (missingPlatforms.length > 0) {
-      res.status(400).json({
-        message: `Connect the required social account(s) before saving: ${missingPlatforms.join(", ")}.`,
-        missingPlatforms,
-      });
-      return;
-    }
+      const missingPlatforms = parsedPlatforms.filter(
+        (platform) => !connectedPlatforms.has(platform)
+      );
 
-    const nextScheduledFor = new Date(scheduledFor);
+      if (missingPlatforms.length > 0) {
+        res.status(400).json({
+          message: `Connect the required social account(s) before saving: ${missingPlatforms.join(", ")}.`,
+          missingPlatforms,
+        });
+        return;
+      }
 
-    if (
-      !scheduledFor ||
-      Number.isNaN(nextScheduledFor.getTime()) ||
-      nextScheduledFor <= new Date()
-    ) {
-      res.status(400).json({
-        message: "Scheduled date and time must be in the future.",
-      });
-      return;
+      nextScheduledFor = new Date(scheduledFor);
+
+      if (
+        !scheduledFor ||
+        Number.isNaN(nextScheduledFor.getTime()) ||
+        nextScheduledFor <= new Date()
+      ) {
+        res.status(400).json({
+          message: "Scheduled date and time must be in the future.",
+        });
+        return;
+      }
+    } else {
+        // Drafts
+        accountPlatforms = parsedPlatforms.filter(p => supportedPlatforms.includes(p as SupportedPlatform)) as SupportedPlatform[];
     }
 
     let nextMediaUrl: string | undefined = post.mediaUrl
@@ -532,7 +567,7 @@ export const updateScheduledPost = async (
       nextMediaType = mediaType;
     }
 
-    if (accountPlatforms.includes("instagram")) {
+    if (finalStatus === "scheduled" && accountPlatforms.includes("instagram")) {
       if (!nextMediaUrl) {
         res.status(400).json({
           message:
@@ -552,9 +587,10 @@ export const updateScheduledPost = async (
 
     post.content = content;
     post.platforms = accountPlatforms;
-    post.scheduledFor = nextScheduledFor;
+    post.scheduledFor = finalStatus === "scheduled" ? nextScheduledFor : undefined;
     post.mediaUrl = nextMediaUrl;
     post.mediaType = nextMediaType;
+    post.status = finalStatus;
 
     await post.save();
 
