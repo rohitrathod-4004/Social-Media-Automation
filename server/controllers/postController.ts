@@ -55,7 +55,7 @@ export const generatePost = async (
     req: AuthRequest,
     res: Response,
 ): Promise<void> => {
-    const { prompt, tone, generateImage } = req.body;
+    const { prompt, tone, generateImage, platforms } = req.body;
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
@@ -70,17 +70,28 @@ export const generatePost = async (
 
     const ai = new GoogleGenAI({ apiKey });
 
+    const requestedPlatforms = Array.isArray(platforms) ? platforms : [];
+    const hasPlatforms = requestedPlatforms.length > 0;
+
+    let systemPrompt = `Generate a social media post based on this prompt: "${prompt}". Tone: ${tone}.
+            Include relevant hashtags.
+            Format the response as strict JSON with a "content" field (a generic fallback caption) and an "imagePrompt" field (highly descriptive prompt for an image generator that complements the post).`;
+
+    if (hasPlatforms) {
+        systemPrompt += `\nAdditionally, you MUST generate a platform-specific version of the content for each of these platforms: ${requestedPlatforms.join(", ")}.
+            Include these in a "platformContent" object within the JSON where the keys are the platform names and the values are the generated platform-specific strings.
+            Make sure to respect the distinct style, length, and formatting expectations of each requested platform.`;
+    }
+
     //Generate Text
     const textResponse = await ai.models.generateContent({
         model: "gemini-3.6-flash",
-        contents: `Generate a social media post based on this prompt: "${prompt}". Tone: ${tone}.
-            Include relevant hashtags.
-            Format the response as JSON with "content" and "imagePrompt" fields.
-            The "imagePrompt" should be highly descriptive prompt for an image generator that complements the post.`,
+        contents: systemPrompt,
     });
 
     let content = "";
     let imagePrompt = prompt;
+    let platformContent: Record<string, string> | undefined = undefined;
 
     try {
         const rawText = textResponse.text || "";
@@ -90,7 +101,21 @@ export const generatePost = async (
             : { content: rawText, imagePrompt: prompt };
         content = data.content;
         imagePrompt = data.imagePrompt;
-    } catch (e) {
+        
+        if (hasPlatforms && data.platformContent) {
+            platformContent = {};
+            for (const p of requestedPlatforms) {
+                if (!data.platformContent[p]) {
+                    throw new Error(`AI generated response is missing required platform: ${p}`);
+                }
+                platformContent[p] = data.platformContent[p];
+            }
+        }
+    } catch (e: any) {
+        if (e.message && e.message.includes("AI generated response is missing")) {
+            res.status(500).json({ message: e.message });
+            return;
+        }
         content = textResponse.text || "";
     }
 
@@ -141,6 +166,7 @@ export const generatePost = async (
         user: req.user._id,
         prompt,
         content,
+        platformContent,
         mediaUrl,
         mediaType: mediaUrl ? "image" : undefined,
         tone,
@@ -164,17 +190,21 @@ export const getGenerations = async (
         const relatedPosts = await Post.find({
             user: req.user._id,
             generation: { $in: generationIds },
-        }).select("generation status");
+        }).select("generation status _id");
 
-        const statusByGeneration = new Map(
-            relatedPosts.map((post) => [String(post.generation), post.status]),
+        const postMap = new Map(
+            relatedPosts.map((post) => [String(post.generation), { status: post.status, _id: post._id }]),
         );
 
         res.json(
-            generations.map((generation) => ({
-                ...generation.toObject(),
-                status: statusByGeneration.get(String(generation._id)) ?? "draft",
-            })),
+            generations.map((generation) => {
+                const postData = postMap.get(String(generation._id));
+                return {
+                    ...generation.toObject(),
+                    postStatus: postData ? postData.status : null,
+                    postId: postData ? postData._id : null,
+                };
+            }),
         );
     } catch (err: any) {
         res
@@ -207,18 +237,18 @@ export const schedulePosts = async (
     res: Response,
 ): Promise<void> => {
     try {
-        const { content, platforms, scheduledFor, status, generation } = req.body;
+        const { content, platforms, scheduledFor, status, generation, platformContent } = req.body;
 
         if (generation) {
             const existingPost = await Post.findOne({
                 user: req.user._id,
                 generation,
-                status: { $in: ["scheduled", "published"] },
-            }).select("status");
+            }).select("status _id");
 
             if (existingPost) {
                 res.status(409).json({
-                    message: `This generation has already been ${existingPost.status}.`,
+                    message: "A post for this generation already exists. Please edit the existing post.",
+                    postId: existingPost._id
                 });
                 return;
             }
@@ -250,51 +280,66 @@ export const schedulePosts = async (
             }
         }
 
-        if (parsedPlatforms.length === 0) {
-            res.status(400).json({
-                message: "Please select at least one platform.",
-            });
-            return;
-        }
-
-        // Reject platform names that are not allowed by Account/Post schemas.
-        const invalidPlatforms = parsedPlatforms.filter(
-            (platform) => !supportedPlatforms.includes(platform as SupportedPlatform),
-        );
-
-        if (invalidPlatforms.length > 0) {
-            res.status(400).json({
-                message: `Unsupported platform(s): ${invalidPlatforms.join(", ")}.`,
-            });
-            return;
-        }
-
-        const accountPlatforms = parsedPlatforms as SupportedPlatform[];
-
-        const connectedAccounts = await Account.find({
-            user: req.user._id,
-            platform: { $in: accountPlatforms },
-            status: "connected",
-        }).select("platform");
-
-        const connectedPlatforms = new Set<string>(
-            connectedAccounts.map((account) => account.platform),
-        );
-
-        const missingPlatforms = parsedPlatforms.filter(
-            (platform) => !connectedPlatforms.has(platform),
-        );
-
-        if (missingPlatforms.length > 0) {
-            res.status(400).json({
-                message: `Connect the required social account(s) before scheduling: ${missingPlatforms.join(", ")}.`,
-                missingPlatforms,
-            });
-            return;
-        }
-
+        const finalStatus = status === "draft" ? "draft" : "scheduled";
         let mediaUrl: string | undefined = req.body.mediaUrl;
         let mediaType: "image" | "video" | undefined = req.body.mediaType;
+        let accountPlatforms: SupportedPlatform[] = [];
+
+        if (finalStatus === "scheduled") {
+            if (parsedPlatforms.length === 0) {
+                res.status(400).json({
+                    message: "Please select at least one platform.",
+                });
+                return;
+            }
+
+            // Reject platform names that are not allowed by Account/Post schemas.
+            const invalidPlatforms = parsedPlatforms.filter(
+                (platform) => !supportedPlatforms.includes(platform as SupportedPlatform),
+            );
+
+            if (invalidPlatforms.length > 0) {
+                res.status(400).json({
+                    message: `Unsupported platform(s): ${invalidPlatforms.join(", ")}.`,
+                });
+                return;
+            }
+
+            accountPlatforms = parsedPlatforms as SupportedPlatform[];
+
+            const connectedAccounts = await Account.find({
+                user: req.user._id,
+                platform: { $in: accountPlatforms },
+                status: "connected",
+            }).select("platform");
+
+            const connectedPlatforms = new Set<string>(
+                connectedAccounts.map((account) => account.platform),
+            );
+
+            const missingPlatforms = parsedPlatforms.filter(
+                (platform) => !connectedPlatforms.has(platform),
+            );
+
+            if (missingPlatforms.length > 0) {
+                res.status(400).json({
+                    message: `Connect the required social account(s) before scheduling: ${missingPlatforms.join(", ")}.`,
+                    missingPlatforms,
+                });
+                return;
+            }
+
+            const nextScheduledFor = new Date(scheduledFor);
+            if (!scheduledFor || Number.isNaN(nextScheduledFor.getTime()) || nextScheduledFor <= new Date()) {
+                res.status(400).json({
+                    message: "Scheduled date and time must be in the future.",
+                });
+                return;
+            }
+        } else {
+             // For drafts, we just accept whatever platforms they sent, as long as they are valid enum strings.
+             accountPlatforms = parsedPlatforms.filter(p => supportedPlatforms.includes(p as SupportedPlatform)) as SupportedPlatform[];
+        }
 
         // Detect manually uploaded media before Cloudinary upload.
         if (req.file) {
@@ -306,7 +351,7 @@ export const schedulePosts = async (
         }
 
         // Instagram requires an image.
-        if (parsedPlatforms.includes("instagram")) {
+        if (finalStatus === "scheduled" && accountPlatforms.includes("instagram")) {
             if (!req.file && !mediaUrl) {
                 res.status(400).json({
                     message:
@@ -347,15 +392,43 @@ export const schedulePosts = async (
             mediaUrl = result.secure_url;
         }
 
+        let parsedPlatformContent: Record<string, string> | undefined = undefined;
+        if (platformContent) {
+            try {
+                parsedPlatformContent = typeof platformContent === "string" ? JSON.parse(platformContent) : platformContent;
+            } catch {
+                // Ignore parse errors
+            }
+        }
+
+        if (finalStatus === "scheduled") {
+            if (parsedPlatformContent && Object.keys(parsedPlatformContent).length > 0) {
+                for (const p of accountPlatforms) {
+                    if (!parsedPlatformContent[p] || parsedPlatformContent[p].trim() === "") {
+                        res.status(400).json({
+                            message: `Please provide content for ${p} before scheduling.`,
+                        });
+                        return;
+                    }
+                }
+            } else if (!content || content.trim() === "") {
+                res.status(400).json({
+                    message: "Please provide content before scheduling.",
+                });
+                return;
+            }
+        }
+
         const post = await Post.create({
             user: req.user._id,
             generation: generation || undefined,
             content,
+            platformContent: parsedPlatformContent,
             platforms: accountPlatforms,
             mediaUrl,
             mediaType,
-            scheduledFor,
-            status,
+            scheduledFor: finalStatus === "scheduled" ? scheduledFor : undefined,
+            status: finalStatus,
         });
 
         res.status(201).json(post);
@@ -364,4 +437,338 @@ export const schedulePosts = async (
             message: err?.message || "Server error",
         });
     }
+};
+
+export const updateScheduledPost = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    const post = await Post.findOne({
+      _id: req.params.id,
+      user: req.user._id,
+    });
+
+    if (!post) {
+      res.status(404).json({
+        message: "Post not found.",
+      });
+      return;
+    }
+
+    if (post.status !== "scheduled" && post.status !== "failed" && post.status !== "draft") {
+      res.status(409).json({
+        message: "Only scheduled, failed, or draft posts can be edited.",
+      });
+      return;
+    }
+
+    const {
+      content,
+      platforms,
+      scheduledFor,
+      mediaUrl,
+      mediaType,
+      removeMedia,
+      status,
+      platformContent
+    } = req.body;
+
+    const finalStatus = status === "draft" ? "draft" : "scheduled";
+
+    // DO NOT allow reverting a scheduled/failed post to draft.
+    if ((post.status === "scheduled" || post.status === "failed") && finalStatus === "draft") {
+      res.status(400).json({
+        message: "Cannot revert a scheduled or failed post to draft.",
+      });
+      return;
+    }
+
+    // Normalize platforms from FormData or JSON.
+    let parsedPlatforms: string[] = [];
+
+    if (Array.isArray(platforms)) {
+      parsedPlatforms = platforms;
+    } else if (typeof platforms === "string") {
+      try {
+        parsedPlatforms = JSON.parse(platforms);
+      } catch {
+        parsedPlatforms = platforms.split(",");
+      }
+    }
+
+    const supportedPlatforms = [
+      "twitter",
+      "linkedin",
+      "facebook",
+      "instagram",
+      "facebook_page",
+      "linkedin_page",
+      "instagram_business",
+    ] as const;
+
+    type SupportedPlatform = (typeof supportedPlatforms)[number];
+    let accountPlatforms: SupportedPlatform[] = [];
+    let nextScheduledFor: Date | undefined = undefined;
+
+    if (finalStatus === "scheduled") {
+      if (parsedPlatforms.length === 0) {
+        res.status(400).json({
+          message: "Please select at least one platform.",
+        });
+        return;
+      }
+
+      const invalidPlatforms = parsedPlatforms.filter(
+        (platform) => !supportedPlatforms.includes(platform as SupportedPlatform)
+      );
+
+      if (invalidPlatforms.length > 0) {
+        res.status(400).json({
+          message: `Unsupported platform(s): ${invalidPlatforms.join(", ")}.`,
+        });
+        return;
+      }
+
+      accountPlatforms = parsedPlatforms as SupportedPlatform[];
+
+      const connectedAccounts = await Account.find({
+        user: req.user._id,
+        platform: { $in: accountPlatforms },
+        status: "connected",
+      }).select("platform");
+
+      const connectedPlatforms = new Set<string>(
+        connectedAccounts.map((account) => String(account.platform))
+      );
+
+      const missingPlatforms = parsedPlatforms.filter(
+        (platform) => !connectedPlatforms.has(platform)
+      );
+
+      if (missingPlatforms.length > 0) {
+        res.status(400).json({
+          message: `Connect the required social account(s) before saving: ${missingPlatforms.join(", ")}.`,
+          missingPlatforms,
+        });
+        return;
+      }
+
+      nextScheduledFor = new Date(scheduledFor);
+
+      if (
+        !scheduledFor ||
+        Number.isNaN(nextScheduledFor.getTime()) ||
+        nextScheduledFor <= new Date()
+      ) {
+        res.status(400).json({
+          message: "Scheduled date and time must be in the future.",
+        });
+        return;
+      }
+    } else {
+        // Drafts
+        accountPlatforms = parsedPlatforms.filter(p => supportedPlatforms.includes(p as SupportedPlatform)) as SupportedPlatform[];
+    }
+
+    let nextMediaUrl: string | undefined = post.mediaUrl
+      ? String(post.mediaUrl)
+      : undefined;
+    let nextMediaType: "image" | "video" | undefined =
+      post.mediaType === "image" || post.mediaType === "video"
+        ? post.mediaType
+        : undefined;
+
+    // Explicit media removal.
+    if (removeMedia === "true" || removeMedia === true) {
+      nextMediaUrl = undefined;
+      nextMediaType = undefined;
+    }
+
+    // New upload replaces the existing media.
+    if (req.file) {
+      if (req.file.mimetype.startsWith("image/")) {
+        nextMediaType = "image";
+      } else if (req.file.mimetype.startsWith("video/")) {
+        nextMediaType = "video";
+      } else {
+        res.status(400).json({
+          message: "Unsupported media type.",
+        });
+        return;
+      }
+
+      const result = await new Promise<any>((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            resource_type: "auto",
+            folder: "social-scheduler",
+          },
+          (error, uploadedResult) => {
+            if (error) reject(error);
+            else resolve(uploadedResult);
+          }
+        );
+
+        stream.end(req.file!.buffer);
+      });
+
+      nextMediaUrl = result.secure_url;
+    }
+
+    // Existing media remains when no new file and no remove request.
+    if (mediaUrl && !req.file && removeMedia !== "true") {
+      nextMediaUrl = mediaUrl;
+      nextMediaType = mediaType;
+    }
+
+    if (finalStatus === "scheduled" && accountPlatforms.includes("instagram")) {
+      if (!nextMediaUrl) {
+        res.status(400).json({
+          message:
+            "Instagram requires an image for this post. Please upload an image before saving.",
+        });
+        return;
+      }
+
+      if (nextMediaType !== "image") {
+        res.status(400).json({
+          message:
+            "Instagram image posts require an image. Please upload an image instead.",
+        });
+        return;
+      }
+    }
+
+    let parsedPlatformContent: Record<string, string> | undefined = undefined;
+    if (platformContent) {
+        try {
+            parsedPlatformContent = typeof platformContent === "string" ? JSON.parse(platformContent) : platformContent;
+        } catch {
+            // Ignore
+        }
+    }
+
+    if (finalStatus === "scheduled") {
+        if (parsedPlatformContent && Object.keys(parsedPlatformContent).length > 0) {
+            for (const p of accountPlatforms) {
+                if (!parsedPlatformContent[p] || parsedPlatformContent[p].trim() === "") {
+                    res.status(400).json({
+                        message: `Please provide content for ${p} before scheduling.`,
+                    });
+                    return;
+                }
+            }
+        } else if (!content || content.trim() === "") {
+            res.status(400).json({
+                message: "Please provide content before scheduling.",
+            });
+            return;
+        }
+    }
+
+    post.content = content;
+    post.platforms = accountPlatforms;
+    post.platformContent = parsedPlatformContent;
+    post.scheduledFor = finalStatus === "scheduled" ? nextScheduledFor : undefined;
+    post.mediaUrl = nextMediaUrl;
+    post.mediaType = nextMediaType;
+    post.status = finalStatus;
+
+    await post.save();
+
+    res.json(post);
+  } catch (error: any) {
+    res.status(500).json({
+      message: error?.message || "Failed to update scheduled post.",
+    });
+  }
+};
+
+export const retryFailedPost = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<void> => {
+  try {
+    const post = await Post.findOne({
+      _id: req.params.id,
+      user: req.user._id,
+    });
+
+    if (!post) {
+      res.status(404).json({ message: "Post not found." });
+      return;
+    }
+
+    if (post.status !== "failed") {
+      res.status(409).json({
+        message: "Only failed posts can be retried.",
+      });
+      return;
+    }
+
+    if (!post.scheduledFor || post.scheduledFor <= new Date()) {
+      res.status(400).json({
+        message: "The scheduled date and time must be in the future before retrying.",
+      });
+      return;
+    }
+
+    if (!post.platforms || post.platforms.length === 0) {
+      res.status(400).json({
+        message: "At least one platform is required before retrying.",
+      });
+      return;
+    }
+
+    const connectedAccounts = await Account.find({
+      user: req.user._id,
+      platform: { $in: post.platforms },
+      status: "connected",
+    }).select("platform");
+
+    const connectedPlatforms = new Set(
+      connectedAccounts.map((account) => account.platform),
+    );
+
+    const missingPlatforms = post.platforms.filter(
+      (platform) => !connectedPlatforms.has(platform),
+    );
+
+    if (missingPlatforms.length > 0) {
+      res.status(400).json({
+        message: `Connect the required social account(s) before retrying: ${missingPlatforms.join(", ")}.`,
+        missingPlatforms,
+      });
+      return;
+    }
+
+    if (post.platforms.includes("instagram")) {
+      if (!post.mediaUrl) {
+        res.status(400).json({
+          message: "Instagram requires an image for this post before retrying.",
+        });
+        return;
+      }
+
+      if (post.mediaType !== "image") {
+        res.status(400).json({
+          message: "Instagram image posts require an image before retrying.",
+        });
+        return;
+      }
+    }
+
+    post.status = "scheduled";
+    post.failureReason = undefined;
+    post.failedAt = undefined;
+    post.retryCount = (post.retryCount || 0) + 1;
+
+    const updatedPost = await post.save();
+    res.json(updatedPost);
+  } catch (err: any) {
+    res.status(500).json({
+      message: err?.message || "Failed to retry post.",
+    });
+  }
 };

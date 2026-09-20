@@ -11,7 +11,7 @@ const Sidebar = ({isOpen , setIsOpen} : {isOpen: boolean , setIsOpen :(val : boo
     const navItems = [
         {name:'Dashboard' ,  icon:LayoutDashboardIcon , path:'/dashboard'},
         {name: "Accounts", icon: UserIcon, path: "/accounts"},
-        {name: "Scheduler", icon: CalendarDaysIcon , path: "/schedule"},
+        {name: "Scheduler", icon: CalendarDaysIcon , path: "/scheduler"},
         {name: "AI Composer", icon: Wand2Icon , path: "/aicomposer"},
     ]
 

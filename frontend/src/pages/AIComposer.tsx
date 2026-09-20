@@ -24,6 +24,9 @@ const AIComposer = () => {
   const [scheduling, setScheduling] = useState(false);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
 
+  const [editedContent, setEditedContent] = useState("");
+  const [editedPlatformContent, setEditedPlatformContent] = useState<Record<string, string>>({});
+
 
 
   //until image generation is fixed, we will disable it and show a toast
@@ -73,9 +76,11 @@ const AIComposer = () => {
     }
     setLoading(true);
     try {
-      const { data } = await api.post("/api/posts/generate", { prompt, tone, generateImage });
+      const { data } = await api.post("/api/posts/generate", { prompt, tone, generateImage, platforms: selectedPlatforms });
       setGenerations([data, ...generations]);
       setActiveScheduler(data)
+      setEditedContent(data.content || "");
+      setEditedPlatformContent(data.platformContent || {});
       toast.success("Content generated!")
     } catch (error: any) {
       toast.error(error?.response?.data?.message || error?.message);
@@ -124,10 +129,11 @@ const AIComposer = () => {
       if (mediaFile) {
           const formData = new FormData();
 
-          formData.append("content", activeScheduler.content);
+          formData.append("content", editedContent);
           formData.append("scheduledFor", scheduledFor);
           formData.append("status", "scheduled");
           formData.append("platforms", JSON.stringify(selectedPlatforms));
+          formData.append("platformContent", JSON.stringify(editedPlatformContent));
           formData.append("generation", activeScheduler._id);
           formData.append("media", mediaFile);
 
@@ -138,7 +144,8 @@ const AIComposer = () => {
           });
         } else {
           await api.post("/api/posts", {
-            content: activeScheduler.content,
+            content: editedContent,
+            platformContent: editedPlatformContent,
             mediaUrl: activeScheduler.mediaUrl,
             mediaType: activeScheduler.mediaType,
             platforms: selectedPlatforms,
@@ -165,6 +172,50 @@ const AIComposer = () => {
     }
   }
   
+    const handleSaveDraft = async () => {
+      if (!activeScheduler) return;
+
+      setScheduling(true);
+      try {
+        if (mediaFile) {
+          const formData = new FormData();
+          formData.append("content", editedContent);
+          formData.append("status", "draft");
+          formData.append("platforms", JSON.stringify(selectedPlatforms));
+          formData.append("platformContent", JSON.stringify(editedPlatformContent));
+          formData.append("generation", activeScheduler._id);
+          formData.append("media", mediaFile);
+
+          await api.post("/api/posts", formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+        } else {
+          await api.post("/api/posts", {
+            content: editedContent,
+            platformContent: editedPlatformContent,
+            mediaUrl: activeScheduler.mediaUrl,
+            mediaType: activeScheduler.mediaType,
+            platforms: selectedPlatforms,
+            status: "draft",
+            generation: activeScheduler._id,
+          });
+        }
+
+        toast.success("Saved as draft!");
+        await fetchGenerations();
+
+        setActiveScheduler(null);
+        setSelectedPlatforms([]);
+        setScheduledDate("");
+        setScheduledTime("");
+        setMediaFile(null);
+      } catch (error: any) {
+        toast.error(error?.response?.data?.message || "Failed to save draft.");
+      } finally {
+        setScheduling(false);
+      }
+    };
+
   return (
     <div>
       {/* Input Section */}
@@ -196,12 +247,27 @@ const AIComposer = () => {
             </button>
           </div>
         </div>
-        <div className="flex flex-wrap justify-center gap-2">
-          {tones.map((t) => (
-            <button key={t} onClick={() => setTone(t)} className={`px-4 py-1.5 rounded-full text-sm transition-all border ${tone === t ? "bg-red-500 border-red-500 text-white" : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"}`}>
-              {t}
-            </button>
-          ))}
+        <div className="flex flex-wrap justify-center gap-4 mt-6">
+          <div className="flex flex-wrap gap-2 items-center justify-center border-r border-slate-200 pr-4">
+            <span className="text-xs text-slate-400 uppercase tracking-widest font-semibold mr-2">Tone</span>
+            {tones.map((t) => (
+              <button key={t} onClick={() => setTone(t)} className={`px-4 py-1.5 rounded-full text-sm transition-all border ${tone === t ? "bg-red-500 border-red-500 text-white" : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"}`}>
+                {t}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2 items-center justify-center">
+            <span className="text-xs text-slate-400 uppercase tracking-widest font-semibold mr-2">Platforms</span>
+            {PLATFORMS.map((p) => {
+              const active = selectedPlatforms.includes(p.id)
+              return (
+                <button key={p.id} onClick={() => setSelectedPlatforms((prev) => (prev.includes(p.id) ? prev.filter((x) => x != p.id) : [...prev, p.id]))}
+                  className={`p-2 rounded-full border transition-all ${active ? "bg-red-500 border-red-500 text-white" : "bg-white border-slate-200 text-slate-400 hover:border-slate-300"}`}>
+                  <p.icon className="size-4" />
+                </button>
+              )
+            })}
+          </div>
         </div>
       </div>
 
@@ -230,18 +296,25 @@ const AIComposer = () => {
                   </div>
                 )}
                 <div className="flex items-center gap-2 pt-2">
-                  {gen.status === "scheduled" || gen.status === "published" ? (
-                    <span className="flex-1 text-center bg-slate-50 text-slate-400 text-xs py-2.5 rounded-lg">
-                      {gen.status === "published" ? "Already published" : "Already scheduled"}
-                    </span>
-                  ) : (
+                  {gen.postStatus === null ? (
                     <button
                       onClick={() => {
                           setMediaFile(null);
                           setActiveScheduler(gen);
+                          setEditedContent(gen.content || "");
+                          setEditedPlatformContent(gen.platformContent || {});
                         }}
                       className="flex-1 bg-slate-100 hover:bg-red-500 hover:text-white text-slate-600 text-xs py-2.5 rounded-lg transition-all">
-                      Schedule Post
+                      Create Post
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => navigate(`/scheduler?postId=${gen.postId}`)}
+                      className="flex-1 text-center bg-slate-50 text-slate-500 border border-slate-200 hover:bg-slate-100 text-xs py-2.5 rounded-lg transition-all">
+                      {gen.postStatus === "draft" ? "Open Draft" : 
+                       gen.postStatus === "scheduled" ? "View Scheduled" : 
+                       gen.postStatus === "failed" ? "View Failed" : 
+                       "View Published"}
                     </button>
                   )}
                 </div>
@@ -307,9 +380,37 @@ const AIComposer = () => {
 
             <div className="flex-1 overflow-y-auto p-8 space-y-4">
               <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 space-y-4">
-                <p className="text-slate-800 text-sm leading-relaxed whitespace-pre-wrap">
-                  {activeScheduler.content}
-                </p>
+                {Object.keys(editedPlatformContent).length > 0 ? (
+                  <div className="space-y-4">
+                    {selectedPlatforms.map((platformId) => {
+                      const meta = PLATFORMS.find((p) => p.id === platformId);
+                      return (
+                        <div key={platformId} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                          <div className="bg-slate-100 px-3 py-2 border-b border-slate-200 flex items-center gap-2">
+                            {meta && <meta.icon className="size-4 text-slate-500" />}
+                            <span className="text-xs font-medium text-slate-600 capitalize">{meta ? meta.name : platformId}</span>
+                          </div>
+                          <textarea
+                            className="w-full px-4 py-3 text-sm text-slate-700 bg-transparent outline-none resize-y min-h-[100px]"
+                            value={editedPlatformContent[platformId] || ""}
+                            onChange={(e) =>
+                              setEditedPlatformContent((prev) => ({
+                                ...prev,
+                                [platformId]: e.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <textarea
+                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-700 outline-none resize-y min-h-[120px]"
+                    value={editedContent}
+                    onChange={(e) => setEditedContent(e.target.value)}
+                  />
+                )}
 
                 {activeScheduler.mediaUrl ? (
                   <img
@@ -379,20 +480,6 @@ const AIComposer = () => {
             <div className="p-8 bg-slate-50/50 border-t border-slate-50 space-y-8">
               {/* Options */}
               <div>
-                <div>
-                  <label className="block text-sxs text-slate-600 uppercase tracking-widest mb-4" >Select Channels</label>
-                  <div className="flex flex-wrap gap-2">
-                    {PLATFORMS.map((p) => {
-                      const active = selectedPlatforms.includes(p.id)
-                      return (
-                        <button key={p.id} onClick={() => setSelectedPlatforms((prev) => (prev.includes(p.id) ? prev.filter((x) => x != p.id) : [...prev, p.id]))}
-                          className={`p-2.5 rounded-md border text-xs ${active ? "bg-red-500/80 text-white" : "bg-white border-slate-200 text-slate-400 hover:border-slate-300"}`}>
-                          <p.icon className="size-4.5" />
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="relative">
                     <CalendarIcon className="size-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -415,13 +502,23 @@ const AIComposer = () => {
                   </div>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={handleSchedule}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-md bg-slate-200 text-slate-700 hover:bg-red-500 hover:text-white transition">
-                {scheduling ? <Loader2Icon className="size-4 animate-spin" /> : <TimerIcon className="size-4" />}
-                Schedule Post
-              </button>
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  type="button"
+                  onClick={handleSaveDraft}
+                  disabled={scheduling}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-md border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition">
+                  {scheduling ? <Loader2Icon className="size-4 animate-spin" /> : "Save Draft"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSchedule}
+                  disabled={scheduling}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-md bg-slate-200 text-slate-700 hover:bg-red-500 hover:text-white transition">
+                  {scheduling ? <Loader2Icon className="size-4 animate-spin" /> : <TimerIcon className="size-4" />}
+                  Schedule Post
+                </button>
+              </div>
             </div>
 
           </div>

@@ -2,8 +2,14 @@ import mongoose from 'mongoose';
 
 const postSchema = new mongoose.Schema({
     user : {type: mongoose.Schema.Types.ObjectId, ref:"User" , required:true},
-    generation : {type: mongoose.Schema.Types.ObjectId, ref:"Generation"},
+    generation : {
+        type: mongoose.Schema.Types.ObjectId, 
+        ref:"Generation",
+        unique: true,
+        sparse: true
+    },
     content : {type:String , required:true},
+    platformContent: { type: Map, of: String },
     mediaUrl : {type:String},
     mediaType : {type:String , enum:["image", "video"]},
     scheduledFor : {type:Date},
@@ -13,6 +19,9 @@ const postSchema = new mongoose.Schema({
             enum:["twitter", "linkedin", "facebook", "instagram" , "facebook_page","linkedin_page","instagram_business"]
         }]
     },
+    failureReason: { type: String },
+    failedAt: { type: Date },
+    retryCount: { type: Number, default: 0 },
     status:{type:String  , enum:["draft", "scheduled", "published", "failed"] , default:"scheduled"},
 
 } , {timestamps:true});
