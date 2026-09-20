@@ -166,7 +166,7 @@ export const generatePost = async (
         user: req.user._id,
         prompt,
         content,
-        platformContent,
+        platformContent: platformContent ? new Map(Object.entries(platformContent)) : undefined,
         mediaUrl,
         mediaType: mediaUrl ? "image" : undefined,
         tone,
@@ -423,7 +423,7 @@ export const schedulePosts = async (
             user: req.user._id,
             generation: generation || undefined,
             content,
-            platformContent: parsedPlatformContent,
+            platformContent: parsedPlatformContent ? new Map(Object.entries(parsedPlatformContent)) : undefined,
             platforms: accountPlatforms,
             mediaUrl,
             mediaType,
@@ -669,7 +669,7 @@ export const updateScheduledPost = async (
 
     post.content = content;
     post.platforms = accountPlatforms;
-    post.platformContent = parsedPlatformContent;
+    post.platformContent = parsedPlatformContent ? new Map(Object.entries(parsedPlatformContent)) : undefined;
     post.scheduledFor = finalStatus === "scheduled" ? nextScheduledFor : undefined;
     post.mediaUrl = nextMediaUrl;
     post.mediaType = nextMediaType;
