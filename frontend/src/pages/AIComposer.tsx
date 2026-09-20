@@ -225,9 +225,9 @@ const AIComposer = () => {
           <textarea className="w-full px-6 py-6 bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 outline-none focus:border-slate-400 transition resize-none h-40" placeholder="Share your idea... (e.g. A post about the launch of our new eco-friendly coffee beans)" value={prompt} onChange={(e) => setPrompt(e.target.value)} />
           <div className="absolute bottom-4 right-2.5 flex items-center gap-3 text-sm">
             {/* <button onClick={() => setGenerateImage(!generateImage)} className="flex items-center gap-3 bg-red-50 py-2 px-3 rounded-lg"> */}
-            <button onClick={() => setShowImageUnavailable(true)} className="flex items-center gap-3 bg-red-50 py-2 px-3 rounded-lg">
+            <button onClick={() => setShowImageUnavailable(true)} className="flex items-center gap-3 bg-primary-soft text-primary py-2 px-3 rounded-lg">
               <span>AI Image</span>
-              <div className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${generateImage ? "bg-red-500" : "bg-slate-200"}`}>
+              <div className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${generateImage ? "bg-primary" : "bg-slate-200"}`}>
                 <span className={`pointer-events-none size-4 transform translate-y-0.5 rounded-full bg-white transition ${generateImage ? "translate-x-4.5" : "translate-x-0.5"}`} />
               </div>
             </button>
@@ -251,7 +251,7 @@ const AIComposer = () => {
           <div className="flex flex-wrap gap-2 items-center justify-center border-r border-slate-200 pr-4">
             <span className="text-xs text-slate-400 uppercase tracking-widest font-semibold mr-2">Tone</span>
             {tones.map((t) => (
-              <button key={t} onClick={() => setTone(t)} className={`px-4 py-1.5 rounded-full text-sm transition-all border ${tone === t ? "bg-red-500 border-red-500 text-white" : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"}`}>
+              <button key={t} onClick={() => setTone(t)} className={`px-4 py-1.5 rounded-full text-sm transition-all border ${tone === t ? "bg-primary border-primary text-white" : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"}`}>
                 {t}
               </button>
             ))}
@@ -262,7 +262,7 @@ const AIComposer = () => {
               const active = selectedPlatforms.includes(p.id)
               return (
                 <button key={p.id} onClick={() => setSelectedPlatforms((prev) => (prev.includes(p.id) ? prev.filter((x) => x != p.id) : [...prev, p.id]))}
-                  className={`p-2 rounded-full border transition-all ${active ? "bg-red-500 border-red-500 text-white" : "bg-white border-slate-200 text-slate-400 hover:border-slate-300"}`}>
+                  className={`p-2 rounded-full border transition-all ${active ? "bg-primary border-primary text-white" : "bg-white border-slate-200 text-slate-400 hover:border-slate-300"}`}>
                   <p.icon className="size-4" />
                 </button>
               )
@@ -286,7 +286,7 @@ const AIComposer = () => {
               <div className="flex flex-col h-full space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-slate-400 uppercase tracking-widest">{new Date(gen.createdAt).toLocaleString()}</span>
-                  <span className="text-xs text-red-500 bg-red-50 px-2 py-0.5 rounded-md">{gen.tone}</span>
+                  <span className="text-xs text-primary bg-primary-soft px-2 py-0.5 rounded-md">{gen.tone}</span>
                 </div>
                 <p className="text-sm text-slate-600 line-clamp-3 leading-relaxed flex-1">{gen.content}</p>
 
@@ -304,7 +304,7 @@ const AIComposer = () => {
                           setEditedContent(gen.content || "");
                           setEditedPlatformContent(gen.platformContent || {});
                         }}
-                      className="flex-1 bg-slate-100 hover:bg-red-500 hover:text-white text-slate-600 text-xs py-2.5 rounded-lg transition-all">
+                      className="flex-1 bg-slate-100 hover:bg-primary hover:text-white text-slate-600 text-xs py-2.5 rounded-lg transition-all">
                       Create Post
                     </button>
                   ) : (
@@ -434,7 +434,7 @@ const AIComposer = () => {
                       <XIcon className="size-3.5" />
                     </button>
 
-                    <label className="block text-center py-2 text-sm text-red-500 cursor-pointer hover:text-red-600">
+                    <label className="block text-center py-2 text-sm text-primary cursor-pointer hover:text-primary-hover">
                       Replace image
                       <input
                         type="file"
@@ -453,7 +453,7 @@ const AIComposer = () => {
                     </label>
                   </div>
                 ) : (
-                  <label className="flex items-center justify-center p-6 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:border-red-300 hover:bg-red-50/30 transition-all">
+                  <label className="flex items-center justify-center p-6 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:border-primary-border hover:bg-primary-soft transition-all">
                     <span className="text-sm text-slate-500">
                       Add Image
                     </span>
@@ -514,7 +514,7 @@ const AIComposer = () => {
                   type="button"
                   onClick={handleSchedule}
                   disabled={scheduling}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-md bg-slate-200 text-slate-700 hover:bg-red-500 hover:text-white transition">
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-md bg-slate-200 text-slate-700 hover:bg-primary hover:text-white transition">
                   {scheduling ? <Loader2Icon className="size-4 animate-spin" /> : <TimerIcon className="size-4" />}
                   Schedule Post
                 </button>

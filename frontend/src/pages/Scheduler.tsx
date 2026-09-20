@@ -311,7 +311,7 @@ const Scheduler = () => {
                 {PLATFORMS.map((p) => {
                   const active = selectedPlatforms.includes(p.id);
                   return (
-                    <button key={p.id} type="button" className={`flex items-center gap-1.5 p-3 rounded-md border transition-all duration-150 ${active ? "bg-red-50 border-red-300 text-red-500 scale-103" : "border-slate-200 text-slate-500 hover:border-slate-300"}`}
+                    <button key={p.id} type="button" className={`flex items-center gap-1.5 p-3 rounded-md border transition-all duration-150 ${active ? "bg-primary-soft border-primary-border text-primary scale-103" : "border-slate-200 text-slate-500 hover:border-slate-300"}`}
                       onClick={() => togglePlatform(p.id)}>
                       <p.icon className="size-4.5" />
                     </button>
@@ -344,8 +344,8 @@ const Scheduler = () => {
                   </button>
                 </div>
               ) : (
-                <label className="flex items-center justify-center gap-2 p-5 py-10 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:border-red-300 hover:bg-red-50/30 transition-all group">
-                  <span className="text-sm text-slate-500 group-hover:text-red-600 transition-colors">Click to upload Image or Video</span>
+                <label className="flex items-center justify-center gap-2 p-5 py-10 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:border-primary-border hover:bg-primary-soft transition-all group">
+                  <span className="text-sm text-slate-500 group-hover:text-primary-hover transition-colors">Click to upload Image or Video</span>
                   <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => e.target.files?.[0] && setMediaFile(e.target.files[0])} />
                 </label>
               )}
@@ -376,7 +376,7 @@ const Scheduler = () => {
             </div>
 
             {/* Submit */}
-            <button type="submit" disabled={loading} className="w-full flex items-center justify-center gap-2 py-3.5 bg-red-500 text-white hover:bg-red-600 rounded-lg transition-all">
+            <button type="submit" disabled={loading} className="w-full flex items-center justify-center gap-2 py-3.5 bg-primary text-white hover:bg-primary-hover rounded-lg transition-all">
               {loading ? (
                 <div>
                   <div className="size-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -464,7 +464,7 @@ const Scheduler = () => {
                   <button
                     type="button"
                     onClick={() => openEditModal(post)}
-                    className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:border-red-300 hover:bg-red-100"
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-primary-border bg-primary-soft px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:border-primary hover:bg-white"
                   >
                     <PencilIcon className="size-3.5" />
                     Edit post
@@ -715,7 +715,7 @@ const Scheduler = () => {
                         )
                       }
                       className={`p-2.5 rounded-md border ${active
-                        ? "bg-red-500 text-white border-red-500"
+                        ? "bg-primary text-white border-primary"
                         : "bg-white text-slate-400 border-slate-200"
                         }`}
                     >
@@ -829,7 +829,7 @@ const Scheduler = () => {
                 type="button"
                 onClick={() => handleEditPost("scheduled")}
                 disabled={editLoading}
-                className={`${editingPost?.status === "draft" ? "w-full" : "w-full col-span-2"} rounded-lg bg-red-500 px-4 py-3 text-white`}
+                className={`${editingPost?.status === "draft" ? "w-full" : "w-full col-span-2"} rounded-lg bg-primary hover:bg-primary-hover px-4 py-3 text-white transition-colors`}
               >
                 {editLoading ? "Saving..." : editingPost?.status === "draft" ? "Schedule Post" : "Save Changes"}
               </button>
