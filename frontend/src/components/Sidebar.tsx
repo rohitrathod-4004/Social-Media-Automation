@@ -1,6 +1,7 @@
 import { LayoutDashboardIcon , UserIcon , CalendarDaysIcon , Wand2Icon, LogOutIcon, InfoIcon} from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/Authcontext'
+import { APP_NAME } from '../assets/assets'
 
 const Sidebar = ({isOpen , setIsOpen} : {isOpen: boolean , setIsOpen :(val : boolean)=>void}) => {
 
@@ -27,9 +28,9 @@ const Sidebar = ({isOpen , setIsOpen} : {isOpen: boolean , setIsOpen :(val : boo
 
         {/* Logo */}
         <div className='p-6 pb-4'>
-            <div className='text-xl tracking-tight text-slate-800 flex items-center gap-1.5'>
-                <img src="/logo.svg" alt="logo" className='size-6'/>
-                Scheduler
+            <div className='text-xl tracking-tight text-slate-800 flex items-center gap-1.5 font-sans font-semibold'>
+                <img src="/logo.svg" alt="logo" className='size-6 opacity-80'/>
+                {APP_NAME}
             </div>
         </div>
 

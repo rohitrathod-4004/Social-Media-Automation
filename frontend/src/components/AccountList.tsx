@@ -17,8 +17,8 @@ const AccountList = ({accounts , onDisconnect}:AccountListProps) => {
     if(accounts.length === 0){
         return (
             <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center py-20 px-6">
-                <div className="size-14 bg-slate-50 rounded-2xl flex items-center justify-center mb-4 border border-slate-100">
-                    <PlusIcon className="size-6 text-slate-500 opacity-50" />
+                <div className="size-14 bg-indigo-50 text-primary rounded-2xl flex items-center justify-center mb-4 border border-indigo-100">
+                    <PlusIcon className="size-6" />
                 </div>
                 <p className="text-slate-700 text-lg">No accounts connected</p>
                 <p className="text-sm text-center text-slate-400 mt-1 max-w-xs">Connect your social platform to start scheduling and automating your content.</p>
@@ -41,26 +41,26 @@ const AccountList = ({accounts , onDisconnect}:AccountListProps) => {
                             <meta.icon className="size-6 text-slate-500"/>
                         </div>
                         <div className="flex-1 min-w-0">
-                            <div className="text-slate-900 truncate">{account.handle}</div>
-                            <div className="text-sm text-slate-500 mt-0.5">{meta.name}</div>
+                            <div className="text-slate-900 truncate font-medium text-sm sm:text-base">{account.handle}</div>
+                            <div className="text-xs text-slate-500 mt-0.5">{meta.name}</div>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
                             {account.status === "connected"? (
-                                <div>
-                                    <CheckCircleIcon className="size-4 text-emerald-500"/>
-                                    <span className="text-xs text-emerald-600">Connected</span>
+                                <div className="flex items-center gap-1.5 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-100">
+                                    <CheckCircleIcon className="size-3.5 text-emerald-500"/>
+                                    <span className="text-xs font-medium text-emerald-700">Connected</span>
                                 </div>
                             ) : (
-                                <div>
-                                    <AlertCircleIcon className="size-4 text-amber-500"/>
-                                    <span className="text-xs text-amber-600">Disconnected</span>
+                                <div className="flex items-center gap-1.5 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-100">
+                                    <AlertCircleIcon className="size-3.5 text-amber-500"/>
+                                    <span className="text-xs font-medium text-amber-700">Disconnected</span>
                                 </div>
                             )}
                         </div>
                         <button
                         onClick={()=>handleDisconnect(account._id)}
-                        title = "Disconnect account" 
-                        className="ml-2 p-1.5 rounded-lg text-slate-300 group-hover:text-red-500 transition-all">
+                        title="Disconnect account" 
+                        className="ml-2 p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all shrink-0">
                             <UnplugIcon className="size-4"/>
                         </button>
                   

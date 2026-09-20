@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { PLATFORMS } from "../assets/assets";
-import { CalendarIcon, ClockIcon, ArrowRightIcon, XIcon, CalendarDaysIcon, SendIcon, PencilIcon, AlertTriangleIcon } from "lucide-react";
+import { CalendarIcon, ClockIcon, ArrowRightIcon, XIcon, SendIcon, PencilIcon, AlertTriangleIcon, PlusIcon, FileSignatureIcon, CalendarXIcon, CheckCircleIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { toast } from "react-hot-toast";
 import api from "../api/axios";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import ScheduleAccountValidationModal from "../components/ScheduleAccountValidationModal";
 import { validatePostForPlatforms } from "../utils/platformValidation";
+
+type TabType = "upcoming" | "drafts" | "published" | "failed";
 
 const Scheduler = () => {
 
@@ -16,6 +18,9 @@ const Scheduler = () => {
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const [activeTab, setActiveTab] = useState<TabType>("upcoming");
+  const [isComposeExpanded, setIsComposeExpanded] = useState(false);
 
   // for showing the modal to select platforms if no accounts are connected
   const [accounts, setAccounts] = useState<any[]>([]);
@@ -296,10 +301,22 @@ const Scheduler = () => {
 
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 h-full">
+    <div className="flex flex-col lg:flex-row gap-6 h-full pb-10">
       {/* Compose panel */}
-      <div className="w-full lg:w-[460px] shrink-0">
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+      <div className="w-full lg:w-[460px] shrink-0 flex flex-col gap-4">
+        {/* Mobile Toggle */}
+        <button 
+          onClick={() => setIsComposeExpanded(!isComposeExpanded)}
+          className="lg:hidden flex items-center justify-between w-full bg-white rounded-2xl border border-slate-200 p-4 font-medium text-slate-700"
+        >
+          <div className="flex items-center gap-2">
+            <PlusIcon className="size-5 text-primary" />
+            New Post
+          </div>
+          {isComposeExpanded ? <ChevronUpIcon className="size-5 text-slate-400" /> : <ChevronDownIcon className="size-5 text-slate-400" />}
+        </button>
+
+        <div className={`bg-white rounded-2xl border border-slate-200 p-6 ${isComposeExpanded ? "block" : "hidden lg:block"}`}>
           <div className="flex items-center gap-2 mb-6">
             <h2 className="text-lg text-slate-700">Compose Post</h2>
           </div>
@@ -393,99 +410,174 @@ const Scheduler = () => {
         </div>
       </div >
 
-      {/* Queue panels */}
-      <div className="flex-1 min-w-0 flex flex-col gap-6 lg:h-[calc(100vh-7rem)] lg:overflow-y-auto lg:pr-2 pb-10">
-        {/* Drafts */}
-        <div className="flex max-h-96 flex-col flex-none overflow-hidden rounded-2xl border border-slate-200 bg-white">
-          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100 shrink-0">
-            <PencilIcon className="size-4 text-zinc-500" />
-            <h3 className="text-slate-900 text-sm">Drafts</h3>
-            <span className="ml-auto text-xs font-bold bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded-full">{drafts.length}</span>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto divide-y divide-slate-50 pb-4">
-            {drafts.length === 0 ? (
-              <div className="py-10 text-center text-slate-400 text-sm">No drafts yet</div>
-            ) : (
-              drafts.map((post) => (
-                <div id={`post-${post._id}`} key={post._id} className="px-5 py-4 hover:bg-slate-50/60 transition-colors">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex gap-1.5 items-center">
-                      {post.platforms.map((pl: string) => {
-                        const meta = PLATFORMS.find((p) => p.id === pl);
-                        return meta ? <meta.icon key={pl} className="size-3.5 text-slate-400" /> : null;
-                      })}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {post.mediaType && <span className="text-xs bg-slate-100 text-slate-600 border border-slate-200 px-1.5 py-0.5 rounded-md font-semibold capitalize">{post.mediaType}</span>}
-                      <span className="text-xs text-slate-400">Draft</span>
-                    </div>
-                  </div>
-                  <p className="text-sm text-slate-500 line-clamp-2 max-w-md">{post.content}</p>
-                  <button
-                    type="button"
-                    onClick={() => openEditModal(post)}
-                    className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-100"
-                  >
-                    <PencilIcon className="size-3.5" />
-                    Edit Draft
-                  </button>
-                </div>
-              ))
+      {/* Unified Queue */}
+      <div className="flex-1 min-w-0 flex flex-col bg-white rounded-2xl border border-slate-200 lg:h-[calc(100vh-7rem)] overflow-hidden">
+        {/* Tabs */}
+        <div className="flex items-center overflow-x-auto border-b border-slate-100 shrink-0 hide-scrollbar px-2 pt-2">
+          <button
+            onClick={() => setActiveTab("upcoming")}
+            className={`whitespace-nowrap px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "upcoming" ? "border-primary text-primary" : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"}`}
+          >
+            Upcoming
+            <span className={`ml-2 text-xs rounded-full px-2 py-0.5 ${activeTab === "upcoming" ? "bg-primary-soft text-primary" : "bg-slate-100 text-slate-600"}`}>{scheduled.length}</span>
+          </button>
+          
+          <button
+            onClick={() => setActiveTab("drafts")}
+            className={`whitespace-nowrap px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "drafts" ? "border-primary text-primary" : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"}`}
+          >
+            Drafts
+            <span className={`ml-2 text-xs rounded-full px-2 py-0.5 ${activeTab === "drafts" ? "bg-primary-soft text-primary" : "bg-slate-100 text-slate-600"}`}>{drafts.length}</span>
+          </button>
+          
+          <button
+            onClick={() => setActiveTab("published")}
+            className={`whitespace-nowrap px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "published" ? "border-primary text-primary" : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"}`}
+          >
+            Published
+            <span className={`ml-2 text-xs rounded-full px-2 py-0.5 ${activeTab === "published" ? "bg-primary-soft text-primary" : "bg-slate-100 text-slate-600"}`}>{published.length}</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("failed")}
+            className={`whitespace-nowrap px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === "failed" ? "border-red-500 text-red-600" : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"}`}
+          >
+            Failed
+            {failed.length > 0 && (
+              <span className={`ml-2 text-xs rounded-full px-2 py-0.5 ${activeTab === "failed" ? "bg-red-100 text-red-700 font-bold" : "bg-red-50 text-red-600"}`}>{failed.length}</span>
             )}
-          </div>
+          </button>
         </div>
 
-        {/* Upcoming */}
-        <div className="flex max-h-96 flex-col flex-none overflow-hidden rounded-2xl border border-slate-200 bg-white">
-          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100 shrink-0">
-            <CalendarDaysIcon className="size-4 text-zinc-500" />
-            <h3 className="text-slate-900 text-sm">Upcoming</h3>
-            <span className="ml-auto text-xs font-bold bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded-full">{scheduled.length}</span>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto divide-y divide-slate-50 pb-4">
-            {scheduled.length === 0 ? (
-              <div className="py-10 text-center text-slate-400 text-sm">No posts scheduled yet</div>
+        {/* List content */}
+        <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+          
+          {/* Upcoming Tab */}
+          {activeTab === "upcoming" && (
+            scheduled.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
+                <div className="size-12 bg-indigo-50 text-indigo-400 rounded-2xl flex items-center justify-center mb-4">
+                  <CalendarXIcon className="size-6" />
+                </div>
+                <h3 className="text-slate-900 font-medium mb-1">No upcoming posts</h3>
+                <p className="text-slate-500 text-sm">Schedule your first post to see it here.</p>
+              </div>
             ) : (
               scheduled.map((post) => (
-                <div id={`post-${post._id}`} key={post._id} className="px-5 py-4 hover:bg-slate-50/60 transition-colors">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex gap-1.5 items-center">
+                <div id={`post-${post._id}`} key={post._id} className="px-4 py-4 sm:px-6 hover:bg-slate-50/50 transition-colors">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex gap-1.5 items-center bg-slate-50 px-2 py-1 rounded-md border border-slate-200">
                       {post.platforms.map((pl: string) => {
                         const meta = PLATFORMS.find((p) => p.id === pl);
-                        return meta ? <meta.icon key={pl} className="size-3.5 text-slate-400" /> : null;
+                        return meta ? <meta.icon key={pl} className="size-3.5 text-slate-500" /> : null;
                       })}
                     </div>
                     <div className="flex items-center gap-2">
-                      {post.mediaType && <span className="text-xs bg-slate-100 text-slate-600 border border-slate-200 px-1.5 py-0.5 rounded-md font-semibold capitalize">{post.mediaType}</span>}
-                      <span className="text-xs text-slate-400">{new Date(post.scheduledFor).toLocaleString()}</span>
+                      {post.mediaType && <span className="text-[10px] uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200 px-1.5 py-0.5 rounded font-semibold">{post.mediaType}</span>}
+                      <span className="text-xs font-medium text-slate-500 flex items-center gap-1">
+                        <ClockIcon className="size-3.5" />
+                        {new Date(post.scheduledFor).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                      </span>
                     </div>
                   </div>
-                  <p className="text-sm text-slate-500 line-clamp-2 max-w-md">{post.content}</p>
+                  <p className="text-sm text-slate-700 line-clamp-3 mb-3">{post.content}</p>
                   <button
                     type="button"
                     onClick={() => openEditModal(post)}
-                    className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-primary-border bg-primary-soft px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:border-primary hover:bg-white"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-primary-border bg-primary-soft px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:border-primary hover:bg-white"
                   >
                     <PencilIcon className="size-3.5" />
                     Edit post
                   </button>
                 </div>
               ))
-            )}
-          </div>
-        </div>
+            )
+          )}
 
-        {/* Failed */}
-        <div className="flex max-h-96 flex-col flex-none overflow-hidden rounded-2xl border border-red-200 bg-red-50/30">
-          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-red-100 shrink-0">
-            <AlertTriangleIcon className="size-4 text-red-500" />
-            <h3 className="text-slate-900 text-sm">Failed</h3>
-            <span className="ml-auto text-xs font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded-full">{failed.length}</span>
-          </div>
+          {/* Drafts Tab */}
+          {activeTab === "drafts" && (
+            drafts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
+                <div className="size-12 bg-slate-50 text-slate-400 rounded-2xl flex items-center justify-center mb-4">
+                  <FileSignatureIcon className="size-6" />
+                </div>
+                <h3 className="text-slate-900 font-medium mb-1">No drafts</h3>
+                <p className="text-slate-500 text-sm">Drafts saved from the composer will appear here.</p>
+              </div>
+            ) : (
+              drafts.map((post) => (
+                <div id={`post-${post._id}`} key={post._id} className="px-4 py-4 sm:px-6 hover:bg-slate-50/50 transition-colors">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex gap-1.5 items-center bg-slate-50 px-2 py-1 rounded-md border border-slate-200">
+                      {post.platforms.map((pl: string) => {
+                        const meta = PLATFORMS.find((p) => p.id === pl);
+                        return meta ? <meta.icon key={pl} className="size-3.5 text-slate-500" /> : null;
+                      })}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {post.mediaType && <span className="text-[10px] uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200 px-1.5 py-0.5 rounded font-semibold">{post.mediaType}</span>}
+                      <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">Draft</span>
+                    </div>
+                  </div>
+                  <p className="text-sm text-slate-700 line-clamp-3 mb-3">{post.content}</p>
+                  <button
+                    type="button"
+                    onClick={() => openEditModal(post)}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-100"
+                  >
+                    <PencilIcon className="size-3.5" />
+                    Open Draft
+                  </button>
+                </div>
+              ))
+            )
+          )}
 
-          <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-red-100">
-            {failed.length === 0 ? (
-              <div className="py-10 text-center text-slate-400 text-sm">No failed posts</div>
+          {/* Published Tab */}
+          {activeTab === "published" && (
+            published.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
+                <div className="size-12 bg-emerald-50 text-emerald-500 rounded-2xl flex items-center justify-center mb-4">
+                  <CheckCircleIcon className="size-6" />
+                </div>
+                <h3 className="text-slate-900 font-medium mb-1">No published posts</h3>
+                <p className="text-slate-500 text-sm">Successfully published posts will be recorded here.</p>
+              </div>
+            ) : (
+              published.map((post) => (
+                <div id={`post-${post._id}`} key={post._id} className="px-4 py-4 sm:px-6 hover:bg-slate-50/50 transition-colors">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex gap-1.5 items-center bg-slate-50 px-2 py-1 rounded-md border border-slate-200">
+                      {post.platforms.map((pl: string) => {
+                        const meta = PLATFORMS.find((p) => p.id === pl);
+                        return meta ? <meta.icon key={pl} className="size-3.5 text-slate-500" /> : null;
+                      })}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {post.mediaType && <span className="text-[10px] uppercase tracking-wider bg-slate-100 text-slate-600 border border-slate-200 px-1.5 py-0.5 rounded font-semibold">{post.mediaType}</span>}
+                      <span className="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <SendIcon className="size-3" />
+                        Published
+                      </span>
+                      <span className="text-xs text-slate-400 ml-1 hidden sm:inline-block">{new Date(post.updatedAt).toLocaleString(undefined, { month: 'short', day: 'numeric' })}</span>
+                    </div>
+                  </div>
+                  <p className="text-sm text-slate-700 line-clamp-3">{post.content}</p>
+                </div>
+              ))
+            )
+          )}
+
+          {/* Failed Tab */}
+          {activeTab === "failed" && (
+            failed.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
+                <div className="size-12 bg-slate-50 text-slate-400 rounded-2xl flex items-center justify-center mb-4">
+                  <CheckCircleIcon className="size-6" />
+                </div>
+                <h3 className="text-slate-900 font-medium mb-1">All clear!</h3>
+                <p className="text-slate-500 text-sm">You have no failed posts.</p>
+              </div>
             ) : (
               failed.map((post) => (
                 <div
@@ -499,59 +591,31 @@ const Scheduler = () => {
                       setSelectedFailedPost(post);
                     }
                   }}
-                  className="flex cursor-pointer items-center gap-3 px-5 py-3 transition-colors hover:bg-red-100/60 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-300"
+                  className="px-4 py-4 sm:px-6 cursor-pointer bg-red-50/30 hover:bg-red-50 transition-colors focus:outline-none focus:bg-red-50 group border-b border-red-100 last:border-b-0"
                 >
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-red-100 text-red-600">
-                    <AlertTriangleIcon className="size-4" />
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm text-slate-700">{post.content}</p>
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-400">
-                      <span>{post.platforms.join(", ")}</span>
-                      <span aria-hidden="true">•</span>
-                      <span>{post.failedAt ? new Date(post.failedAt).toLocaleString() : "Failure time unavailable"}</span>
-                    </div>
-                  </div>
-
-                  <span className="shrink-0 text-xs font-medium text-red-600">View</span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Published */}
-        <div className="flex max-h-96 flex-col flex-none overflow-hidden rounded-2xl border border-slate-200 bg-white">
-          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100 shrink-0">
-            <SendIcon className="size-4 text-zinc-500" />
-            <h3 className="text-slate-900 text-sm">Published</h3>
-            <span className="ml-auto text-xs font-bold bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded-full">{published.length}</span>
-          </div>
-          <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-slate-50">
-            {published.length === 0 ? (
-              <div className="py-10 text-center text-slate-400 text-sm">No posts published yet</div>
-            ) : (
-              published.map((post) => (
-                <div id={`post-${post._id}`} key={post._id} className="px-5 py-4 hover:bg-slate-50/60 transition-colors">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex gap-1.5 items-center">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex gap-1.5 items-center bg-white px-2 py-1 rounded-md border border-red-100">
                       {post.platforms.map((pl: string) => {
                         const meta = PLATFORMS.find((p) => p.id === pl);
-                        return meta ? <meta.icon key={pl} className="size-3.5 text-slate-400" /> : null;
+                        return meta ? <meta.icon key={pl} className="size-3.5 text-slate-500 group-hover:text-red-500 transition-colors" /> : null;
                       })}
                     </div>
                     <div className="flex items-center gap-2">
-                      {post.mediaType && <span className="text-xs bg-slate-100 text-slate-600 border border-slate-200 px-1.5 py-0.5 rounded-md font-semibold capitalize">{post.mediaType}</span>}
-                      <span className="text-xs text-slate-400">{new Date(post.updatedAt).toLocaleString()}</span>
-                      <span className="text-sm bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded-full">Published</span>
+                      <span className="text-xs font-medium text-red-600 bg-red-100 border border-red-200 px-2 py-0.5 rounded flex items-center gap-1">
+                        <AlertTriangleIcon className="size-3.5" />
+                        Failed
+                      </span>
+                      <span className="text-xs text-slate-400 hidden sm:inline-block">
+                        {post.failedAt ? new Date(post.failedAt).toLocaleString(undefined, { month: 'short', day: 'numeric' }) : ""}
+                      </span>
                     </div>
                   </div>
-                  <p className="text-sm text-slate-500 line-clamp-2 max-w-md">{post.content}</p>
+                  <p className="text-sm text-slate-700 line-clamp-2 mb-2">{post.content}</p>
+                  <span className="text-xs font-medium text-red-600 group-hover:underline">View details & retry &rarr;</span>
                 </div>
               ))
-            )}
-          </div>
+            )
+          )}
         </div>
       </div>
 
