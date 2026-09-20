@@ -32,6 +32,7 @@ const Scheduler = () => {
   const [editScheduledTime, setEditScheduledTime] = useState("");
   const [editMediaFile, setEditMediaFile] = useState<File | null>(null);
   const [removeEditMedia, setRemoveEditMedia] = useState(false);
+  const [editPlatformContent, setEditPlatformContent] = useState<Record<string, string>>({});
   const [editLoading, setEditLoading] = useState(false);
   const [selectedFailedPost, setSelectedFailedPost] = useState<any>(null);
 
@@ -179,6 +180,7 @@ const Scheduler = () => {
     setEditingPost(post);
     setEditContent(post.content);
     setEditPlatforms(post.platforms);
+    setEditPlatformContent(post.platformContent || {});
     setEditScheduledDate(d);
     setEditScheduledTime(t);
     setEditMediaFile(null);
@@ -237,6 +239,7 @@ const Scheduler = () => {
 
     formData.append("content", editContent);
     formData.append("platforms", JSON.stringify(editPlatforms));
+    formData.append("platformContent", JSON.stringify(editPlatformContent));
     if (scheduledFor) {
         formData.append("scheduledFor", scheduledFor);
     }
@@ -674,12 +677,38 @@ const Scheduler = () => {
               </button>
             </div>
 
-            <textarea
-              rows={5}
-              value={editContent}
-              onChange={(event) => setEditContent(event.target.value)}
-              className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl text-sm resize-none"
-            />
+            {Object.keys(editPlatformContent).length > 0 ? (
+              <div className="space-y-4 mb-4">
+                {editPlatforms.map((platformId) => {
+                  const meta = PLATFORMS.find((p) => p.id === platformId);
+                  return (
+                    <div key={platformId} className="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
+                      <div className="bg-slate-100/50 px-3 py-2 border-b border-slate-200 flex items-center gap-2">
+                        {meta && <meta.icon className="size-4 text-slate-500" />}
+                        <span className="text-xs font-medium text-slate-600 capitalize">{meta ? meta.name : platformId}</span>
+                      </div>
+                      <textarea
+                        className="w-full px-5 py-4 bg-transparent text-sm resize-y min-h-[100px] outline-none"
+                        value={editPlatformContent[platformId] || ""}
+                        onChange={(event) =>
+                          setEditPlatformContent((prev) => ({
+                            ...prev,
+                            [platformId]: event.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <textarea
+                rows={5}
+                value={editContent}
+                onChange={(event) => setEditContent(event.target.value)}
+                className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl text-sm resize-none mb-4"
+              />
+            )}
 
             <div className="mt-5">
               <label className="block text-xs text-slate-500 uppercase mb-2">

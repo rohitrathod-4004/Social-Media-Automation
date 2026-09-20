@@ -27,10 +27,16 @@ export const initScheduler = ()=>{
         throw new Error("No connected Zernio accounts found.");
       }
 
-      const zernioPlatforms = accounts.map((account) => ({
-        platform: account.platform as any,
-        accountId: account.zernioAccountId!,
-      }));
+      const zernioPlatforms = accounts.map((account) => {
+        const platformKey = account.platform as string;
+        const customContent = post.platformContent?.get(platformKey);
+        
+        return {
+          platform: platformKey as any,
+          accountId: account.zernioAccountId!,
+          ...(customContent ? { customContent } : {})
+        };
+      });
 
       const payload = {
         content: post.content,

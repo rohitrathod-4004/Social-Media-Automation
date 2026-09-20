@@ -9,6 +9,7 @@ const postSchema = new mongoose.Schema({
         sparse: true
     },
     content : {type:String , required:true},
+    platformContent: { type: Map, of: String },
     mediaUrl : {type:String},
     mediaType : {type:String , enum:["image", "video"]},
     scheduledFor : {type:Date},

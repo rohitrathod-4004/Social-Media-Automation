@@ -55,7 +55,7 @@ export const generatePost = async (
     req: AuthRequest,
     res: Response,
 ): Promise<void> => {
-    const { prompt, tone, generateImage } = req.body;
+    const { prompt, tone, generateImage, platforms } = req.body;
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
@@ -70,17 +70,28 @@ export const generatePost = async (
 
     const ai = new GoogleGenAI({ apiKey });
 
+    const requestedPlatforms = Array.isArray(platforms) ? platforms : [];
+    const hasPlatforms = requestedPlatforms.length > 0;
+
+    let systemPrompt = `Generate a social media post based on this prompt: "${prompt}". Tone: ${tone}.
+            Include relevant hashtags.
+            Format the response as strict JSON with a "content" field (a generic fallback caption) and an "imagePrompt" field (highly descriptive prompt for an image generator that complements the post).`;
+
+    if (hasPlatforms) {
+        systemPrompt += `\nAdditionally, you MUST generate a platform-specific version of the content for each of these platforms: ${requestedPlatforms.join(", ")}.
+            Include these in a "platformContent" object within the JSON where the keys are the platform names and the values are the generated platform-specific strings.
+            Make sure to respect the distinct style, length, and formatting expectations of each requested platform.`;
+    }
+
     //Generate Text
     const textResponse = await ai.models.generateContent({
         model: "gemini-3.6-flash",
-        contents: `Generate a social media post based on this prompt: "${prompt}". Tone: ${tone}.
-            Include relevant hashtags.
-            Format the response as JSON with "content" and "imagePrompt" fields.
-            The "imagePrompt" should be highly descriptive prompt for an image generator that complements the post.`,
+        contents: systemPrompt,
     });
 
     let content = "";
     let imagePrompt = prompt;
+    let platformContent: Record<string, string> | undefined = undefined;
 
     try {
         const rawText = textResponse.text || "";
@@ -90,7 +101,21 @@ export const generatePost = async (
             : { content: rawText, imagePrompt: prompt };
         content = data.content;
         imagePrompt = data.imagePrompt;
-    } catch (e) {
+        
+        if (hasPlatforms && data.platformContent) {
+            platformContent = {};
+            for (const p of requestedPlatforms) {
+                if (!data.platformContent[p]) {
+                    throw new Error(`AI generated response is missing required platform: ${p}`);
+                }
+                platformContent[p] = data.platformContent[p];
+            }
+        }
+    } catch (e: any) {
+        if (e.message && e.message.includes("AI generated response is missing")) {
+            res.status(500).json({ message: e.message });
+            return;
+        }
         content = textResponse.text || "";
     }
 
@@ -141,6 +166,7 @@ export const generatePost = async (
         user: req.user._id,
         prompt,
         content,
+        platformContent,
         mediaUrl,
         mediaType: mediaUrl ? "image" : undefined,
         tone,
@@ -211,7 +237,7 @@ export const schedulePosts = async (
     res: Response,
 ): Promise<void> => {
     try {
-        const { content, platforms, scheduledFor, status, generation } = req.body;
+        const { content, platforms, scheduledFor, status, generation, platformContent } = req.body;
 
         if (generation) {
             const existingPost = await Post.findOne({
@@ -366,10 +392,38 @@ export const schedulePosts = async (
             mediaUrl = result.secure_url;
         }
 
+        let parsedPlatformContent: Record<string, string> | undefined = undefined;
+        if (platformContent) {
+            try {
+                parsedPlatformContent = typeof platformContent === "string" ? JSON.parse(platformContent) : platformContent;
+            } catch {
+                // Ignore parse errors
+            }
+        }
+
+        if (finalStatus === "scheduled") {
+            if (parsedPlatformContent && Object.keys(parsedPlatformContent).length > 0) {
+                for (const p of accountPlatforms) {
+                    if (!parsedPlatformContent[p] || parsedPlatformContent[p].trim() === "") {
+                        res.status(400).json({
+                            message: `Please provide content for ${p} before scheduling.`,
+                        });
+                        return;
+                    }
+                }
+            } else if (!content || content.trim() === "") {
+                res.status(400).json({
+                    message: "Please provide content before scheduling.",
+                });
+                return;
+            }
+        }
+
         const post = await Post.create({
             user: req.user._id,
             generation: generation || undefined,
             content,
+            platformContent: parsedPlatformContent,
             platforms: accountPlatforms,
             mediaUrl,
             mediaType,
@@ -416,7 +470,8 @@ export const updateScheduledPost = async (
       mediaUrl,
       mediaType,
       removeMedia,
-      status
+      status,
+      platformContent
     } = req.body;
 
     const finalStatus = status === "draft" ? "draft" : "scheduled";
@@ -585,8 +640,36 @@ export const updateScheduledPost = async (
       }
     }
 
+    let parsedPlatformContent: Record<string, string> | undefined = undefined;
+    if (platformContent) {
+        try {
+            parsedPlatformContent = typeof platformContent === "string" ? JSON.parse(platformContent) : platformContent;
+        } catch {
+            // Ignore
+        }
+    }
+
+    if (finalStatus === "scheduled") {
+        if (parsedPlatformContent && Object.keys(parsedPlatformContent).length > 0) {
+            for (const p of accountPlatforms) {
+                if (!parsedPlatformContent[p] || parsedPlatformContent[p].trim() === "") {
+                    res.status(400).json({
+                        message: `Please provide content for ${p} before scheduling.`,
+                    });
+                    return;
+                }
+            }
+        } else if (!content || content.trim() === "") {
+            res.status(400).json({
+                message: "Please provide content before scheduling.",
+            });
+            return;
+        }
+    }
+
     post.content = content;
     post.platforms = accountPlatforms;
+    post.platformContent = parsedPlatformContent;
     post.scheduledFor = finalStatus === "scheduled" ? nextScheduledFor : undefined;
     post.mediaUrl = nextMediaUrl;
     post.mediaType = nextMediaType;
