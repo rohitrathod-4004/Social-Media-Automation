@@ -294,22 +294,6 @@ const Scheduler = () => {
     }
   };
 
-  const handleRetryFailedPost = async () => {
-    if (!selectedFailedPost) return;
-
-    try {
-      await api.post(`/api/posts/${selectedFailedPost._id}/retry`);
-      toast.success("Post scheduled for retry.");
-      setSelectedFailedPost(null);
-      await fetchPosts();
-    } catch (error: any) {
-      toast.error(
-        error?.response?.data?.message ||
-        error?.message ||
-        "Failed to retry post."
-      );
-    }
-  };
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 h-full">
