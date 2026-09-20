@@ -197,11 +197,11 @@ const Scheduler = () => {
         toast.error("Select date and time.");
         return;
       }
-  
+
       scheduledFor = new Date(
         `${editScheduledDate}T${editScheduledTime}`
       ).toISOString();
-  
+
       const validation = validatePostForPlatforms(
         editPlatforms,
         accounts,
@@ -211,7 +211,7 @@ const Scheduler = () => {
           type: removeEditMedia ? null : editingPost.mediaType,
         }
       );
-  
+
       if (!validation.isValid) {
         if (
           validation.errorType === "platform" ||
@@ -222,17 +222,17 @@ const Scheduler = () => {
           );
           return;
         }
-  
+
         setMissingPlatforms(validation.missingPlatforms);
         setShowAccountValidationModal(true);
         return;
       }
     } else {
-        if (editScheduledDate && editScheduledTime) {
-           scheduledFor = new Date(
-             `${editScheduledDate}T${editScheduledTime}`
-           ).toISOString();
-        }
+      if (editScheduledDate && editScheduledTime) {
+        scheduledFor = new Date(
+          `${editScheduledDate}T${editScheduledTime}`
+        ).toISOString();
+      }
     }
 
     const formData = new FormData();
@@ -241,7 +241,7 @@ const Scheduler = () => {
     formData.append("platforms", JSON.stringify(editPlatforms));
     formData.append("platformContent", JSON.stringify(editPlatformContent));
     if (scheduledFor) {
-        formData.append("scheduledFor", scheduledFor);
+      formData.append("scheduledFor", scheduledFor);
     }
     formData.append(
       "mediaUrl",
@@ -275,8 +275,8 @@ const Scheduler = () => {
         finalStatus === "draft"
           ? "Draft updated."
           : editingPost.status === "failed"
-          ? "Failed post scheduled for retry."
-          : "Scheduled post updated."
+            ? "Failed post scheduled for retry."
+            : "Scheduled post updated."
       );
 
       setEditingPost(null);

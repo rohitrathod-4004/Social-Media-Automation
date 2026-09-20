@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Share2Icon, ClockIcon, SendIcon, ActivityIcon, SparklesIcon, Edit3Icon, AlertCircleIcon } from 'lucide-react';
+import { Share2Icon, ClockIcon, SendIcon, ActivityIcon, SparklesIcon, Edit3Icon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../api/axios';
 import { Button } from '../components/ui/Button';
