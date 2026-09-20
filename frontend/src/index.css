@@ -2,10 +2,50 @@
 @import "tailwindcss";
 
 @theme {
-    --color-bg: #fafafa;
-    --color-text: #111111;
+    /* Brand - Sapphire / Indigo */
+    --color-primary: #4F46E5;
+    --color-primary-hover: #4338CA;
+    --color-primary-soft: #EEF2FF;
+    --color-primary-border: #C7D2FE;
+    --color-accent: #6366F1;
+    --color-accent-soft: #E0E7FF;
+
+    /* Neutrals */
+    --color-background: #F8FAFC;
+    --color-surface: #FFFFFF;
+    --color-surface-secondary: #F8FAFC;
+    --color-surface-elevated: #FFFFFF;
+
+    /* Text */
+    --color-text-strong: #0F172A;
+    --color-text-primary: #1E293B;
+    --color-text-secondary: #475569;
+    --color-text-muted: #94A3B8;
+
+    /* Borders */
+    --color-border: #E2E8F0;
+    --color-border-subtle: #F1F5F9;
+    --color-border-strong: #CBD5E1;
+
+    /* Semantics */
+    --color-success-bg: #ECFDF5;
+    --color-success-border: #A7F3D0;
+    --color-success-text: #047857;
+
+    --color-warning-bg: #FFFBEB;
+    --color-warning-border: #FDE68A;
+    --color-warning-text: #B45309;
+
+    --color-error-bg: #FEF2F2;
+    --color-error-border: #FECACA;
+    --color-error-text: #B91C1C;
+
+    --color-info-bg: #EFF6FF;
+    --color-info-border: #BFDBFE;
+    --color-info-text: #1D4ED8;
+
+    /* Fonts */
     --font-sans: "Outfit", sans-serif;
-    --font-serif: "Urbanist", sans-serif;
 }
 
 * {
@@ -17,8 +57,8 @@ html {
 }
 
 body {
-    background-color: var(--color-bg);
-    color: var(--color-text);
+    background-color: var(--color-background);
+    color: var(--color-text-primary);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;

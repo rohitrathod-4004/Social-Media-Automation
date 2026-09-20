@@ -6,6 +6,7 @@ import Dashboard from "./pages/Dashboard";
 import Accounts from "./pages/Accounts";
 import Scheduler from "./pages/Scheduler";
 import AIComposer from "./pages/AIComposer";
+import About from "./pages/About";
 import { Toaster } from "react-hot-toast";
 
 export default function App() {
@@ -19,7 +20,8 @@ export default function App() {
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/accounts" element={<Accounts/>}/>
                     <Route path="/scheduler" element={<Scheduler/>}/>
-                    <Route path="/aicomposer" element={<AIComposer/>}/>              
+                    <Route path="/aicomposer" element={<AIComposer/>}/>
+                    <Route path="/about" element={<About/>}/>
                 </Route>
             </Routes>
         </>

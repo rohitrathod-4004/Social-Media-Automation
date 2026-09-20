@@ -14,6 +14,8 @@ const LinkedInIcon = (props: React.SVGProps<SVGSVGElement>) => (
     </svg>
 );
 
+export const APP_NAME = "SocialFlow";
+
 export interface Platform {
     id: string;
     name: string;

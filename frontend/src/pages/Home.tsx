@@ -1,21 +1,21 @@
 import Navbar from "../components/Home/Navbar";
 import Hero from "../components/Home/Hero";
-import Features from "../components/Home/Features";
+import PlatformLogos from "../components/Home/PlatformLogos";
 import HowItWorks from "../components/Home/HowItWorks";
-import Testimonials from "../components/Home/Testimonials";
-import Pricing from "../components/Home/Pricing";
+import ShowcaseAI from "../components/Home/ShowcaseAI";
+import ShowcaseScheduler from "../components/Home/ShowcaseScheduler";
 import CTA from "../components/Home/CTA";
 import Footer from "../components/Home/Footer";
 
-export default function Landing() {
+export default function Home() {
     return (
         <div className="min-h-screen bg-white text-slate-900 font-sans">
             <Navbar />
             <Hero />
-            <Features />
+            <PlatformLogos />
             <HowItWorks />
-            <Testimonials />
-            <Pricing />
+            <ShowcaseAI />
+            <ShowcaseScheduler />
             <CTA />
             <Footer />
         </div>

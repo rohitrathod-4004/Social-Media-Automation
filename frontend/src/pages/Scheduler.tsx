@@ -197,11 +197,11 @@ const Scheduler = () => {
         toast.error("Select date and time.");
         return;
       }
-  
+
       scheduledFor = new Date(
         `${editScheduledDate}T${editScheduledTime}`
       ).toISOString();
-  
+
       const validation = validatePostForPlatforms(
         editPlatforms,
         accounts,
@@ -211,7 +211,7 @@ const Scheduler = () => {
           type: removeEditMedia ? null : editingPost.mediaType,
         }
       );
-  
+
       if (!validation.isValid) {
         if (
           validation.errorType === "platform" ||
@@ -222,17 +222,17 @@ const Scheduler = () => {
           );
           return;
         }
-  
+
         setMissingPlatforms(validation.missingPlatforms);
         setShowAccountValidationModal(true);
         return;
       }
     } else {
-        if (editScheduledDate && editScheduledTime) {
-           scheduledFor = new Date(
-             `${editScheduledDate}T${editScheduledTime}`
-           ).toISOString();
-        }
+      if (editScheduledDate && editScheduledTime) {
+        scheduledFor = new Date(
+          `${editScheduledDate}T${editScheduledTime}`
+        ).toISOString();
+      }
     }
 
     const formData = new FormData();
@@ -241,7 +241,7 @@ const Scheduler = () => {
     formData.append("platforms", JSON.stringify(editPlatforms));
     formData.append("platformContent", JSON.stringify(editPlatformContent));
     if (scheduledFor) {
-        formData.append("scheduledFor", scheduledFor);
+      formData.append("scheduledFor", scheduledFor);
     }
     formData.append(
       "mediaUrl",
@@ -275,8 +275,8 @@ const Scheduler = () => {
         finalStatus === "draft"
           ? "Draft updated."
           : editingPost.status === "failed"
-          ? "Failed post scheduled for retry."
-          : "Scheduled post updated."
+            ? "Failed post scheduled for retry."
+            : "Scheduled post updated."
       );
 
       setEditingPost(null);
@@ -311,7 +311,7 @@ const Scheduler = () => {
                 {PLATFORMS.map((p) => {
                   const active = selectedPlatforms.includes(p.id);
                   return (
-                    <button key={p.id} type="button" className={`flex items-center gap-1.5 p-3 rounded-md border transition-all duration-150 ${active ? "bg-red-50 border-red-300 text-red-500 scale-103" : "border-slate-200 text-slate-500 hover:border-slate-300"}`}
+                    <button key={p.id} type="button" className={`flex items-center gap-1.5 p-3 rounded-md border transition-all duration-150 ${active ? "bg-primary-soft border-primary-border text-primary scale-103" : "border-slate-200 text-slate-500 hover:border-slate-300"}`}
                       onClick={() => togglePlatform(p.id)}>
                       <p.icon className="size-4.5" />
                     </button>
@@ -344,8 +344,8 @@ const Scheduler = () => {
                   </button>
                 </div>
               ) : (
-                <label className="flex items-center justify-center gap-2 p-5 py-10 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:border-red-300 hover:bg-red-50/30 transition-all group">
-                  <span className="text-sm text-slate-500 group-hover:text-red-600 transition-colors">Click to upload Image or Video</span>
+                <label className="flex items-center justify-center gap-2 p-5 py-10 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:border-primary-border hover:bg-primary-soft transition-all group">
+                  <span className="text-sm text-slate-500 group-hover:text-primary-hover transition-colors">Click to upload Image or Video</span>
                   <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => e.target.files?.[0] && setMediaFile(e.target.files[0])} />
                 </label>
               )}
@@ -376,7 +376,7 @@ const Scheduler = () => {
             </div>
 
             {/* Submit */}
-            <button type="submit" disabled={loading} className="w-full flex items-center justify-center gap-2 py-3.5 bg-red-500 text-white hover:bg-red-600 rounded-lg transition-all">
+            <button type="submit" disabled={loading} className="w-full flex items-center justify-center gap-2 py-3.5 bg-primary text-white hover:bg-primary-hover rounded-lg transition-all">
               {loading ? (
                 <div>
                   <div className="size-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -394,15 +394,15 @@ const Scheduler = () => {
       </div >
 
       {/* Queue panels */}
-      <div className="flex-1 min-w-0 flex flex-col gap-6">
+      <div className="flex-1 min-w-0 flex flex-col gap-6 lg:h-[calc(100vh-7rem)] lg:overflow-y-auto lg:pr-2 pb-10">
         {/* Drafts */}
-        <div className="flex h-80 shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white">
-          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100">
+        <div className="flex max-h-96 flex-col flex-none overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100 shrink-0">
             <PencilIcon className="size-4 text-zinc-500" />
             <h3 className="text-slate-900 text-sm">Drafts</h3>
             <span className="ml-auto text-xs font-bold bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded-full">{drafts.length}</span>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain divide-y divide-slate-50 pb-4">
+          <div className="min-h-0 flex-1 overflow-y-auto divide-y divide-slate-50 pb-4">
             {drafts.length === 0 ? (
               <div className="py-10 text-center text-slate-400 text-sm">No drafts yet</div>
             ) : (
@@ -436,13 +436,13 @@ const Scheduler = () => {
         </div>
 
         {/* Upcoming */}
-        <div className="flex h-80 shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white">
-          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100">
+        <div className="flex max-h-96 flex-col flex-none overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100 shrink-0">
             <CalendarDaysIcon className="size-4 text-zinc-500" />
             <h3 className="text-slate-900 text-sm">Upcoming</h3>
             <span className="ml-auto text-xs font-bold bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded-full">{scheduled.length}</span>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain divide-y divide-slate-50 pb-4">
+          <div className="min-h-0 flex-1 overflow-y-auto divide-y divide-slate-50 pb-4">
             {scheduled.length === 0 ? (
               <div className="py-10 text-center text-slate-400 text-sm">No posts scheduled yet</div>
             ) : (
@@ -464,7 +464,7 @@ const Scheduler = () => {
                   <button
                     type="button"
                     onClick={() => openEditModal(post)}
-                    className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:border-red-300 hover:bg-red-100"
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-primary-border bg-primary-soft px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:border-primary hover:bg-white"
                   >
                     <PencilIcon className="size-3.5" />
                     Edit post
@@ -476,14 +476,14 @@ const Scheduler = () => {
         </div>
 
         {/* Failed */}
-        <div className="flex-none overflow-hidden rounded-2xl border border-red-200 bg-red-50/30">
-          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-red-100">
+        <div className="flex max-h-96 flex-col flex-none overflow-hidden rounded-2xl border border-red-200 bg-red-50/30">
+          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-red-100 shrink-0">
             <AlertTriangleIcon className="size-4 text-red-500" />
             <h3 className="text-slate-900 text-sm">Failed</h3>
             <span className="ml-auto text-xs font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded-full">{failed.length}</span>
           </div>
 
-          <div className="divide-y divide-red-100">
+          <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-red-100">
             {failed.length === 0 ? (
               <div className="py-10 text-center text-slate-400 text-sm">No failed posts</div>
             ) : (
@@ -522,13 +522,13 @@ const Scheduler = () => {
         </div>
 
         {/* Published */}
-        <div className="flex-none overflow-hidden rounded-2xl border border-slate-200 bg-white">
-          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100">
+        <div className="flex max-h-96 flex-col flex-none overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100 shrink-0">
             <SendIcon className="size-4 text-zinc-500" />
             <h3 className="text-slate-900 text-sm">Published</h3>
             <span className="ml-auto text-xs font-bold bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded-full">{published.length}</span>
           </div>
-          <div className="divide-y divide-slate-50">
+          <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-slate-50">
             {published.length === 0 ? (
               <div className="py-10 text-center text-slate-400 text-sm">No posts published yet</div>
             ) : (
@@ -715,7 +715,7 @@ const Scheduler = () => {
                         )
                       }
                       className={`p-2.5 rounded-md border ${active
-                        ? "bg-red-500 text-white border-red-500"
+                        ? "bg-primary text-white border-primary"
                         : "bg-white text-slate-400 border-slate-200"
                         }`}
                     >
@@ -829,7 +829,7 @@ const Scheduler = () => {
                 type="button"
                 onClick={() => handleEditPost("scheduled")}
                 disabled={editLoading}
-                className={`${editingPost?.status === "draft" ? "w-full" : "w-full col-span-2"} rounded-lg bg-red-500 px-4 py-3 text-white`}
+                className={`${editingPost?.status === "draft" ? "w-full" : "w-full col-span-2"} rounded-lg bg-primary hover:bg-primary-hover px-4 py-3 text-white transition-colors`}
               >
                 {editLoading ? "Saving..." : editingPost?.status === "draft" ? "Schedule Post" : "Save Changes"}
               </button>
