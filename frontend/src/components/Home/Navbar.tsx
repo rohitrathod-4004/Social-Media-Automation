@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowRightIcon, SparklesIcon } from "lucide-react";
+import { ArrowRightIcon } from "lucide-react";
 import { useAuth } from "../../context/Authcontext";
 import { APP_NAME } from "../../assets/assets";
 import { Button } from "../ui/Button";
@@ -11,9 +11,7 @@ export default function Navbar() {
         <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-slate-100">
             <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
                 <Link to="/" onClick={() => scrollTo(0, 0)} className="flex items-center gap-2 ">
-                    <div className="size-7 bg-primary rounded-lg flex items-center justify-center">
-                        <SparklesIcon className="size-4 text-white" />
-                    </div>
+                    <img src="/logo.svg" alt="logo" className="size-7 opacity-80" />
                     <span className="text-xl lg:text-2xl font-semibold font-sans text-slate-800 tracking-tight">{APP_NAME}</span>
                 </Link>
                 <div className="hidden md:flex items-center gap-8 text-sm text-slate-500 font-medium">

@@ -4,6 +4,7 @@ import { MailIcon, LockIcon, ArrowRightIcon, User2Icon } from "lucide-react";
 import { useAuth } from "../context/Authcontext";
 import { toast } from "react-hot-toast/headless";
 import api from "../api/axios";
+import { APP_NAME } from "../assets/assets";
 
 export default function Login() {
     const [loginState, setLoginState] = useState(true);
@@ -44,8 +45,8 @@ export default function Login() {
                 <div className="bg-white rounded-2xl shadow-sm p-8">
                     <div className="flex flex-col items-center mb-8">
                         <Link to="/" className="flex items-center gap-2">
-                            <img src="/logo.svg" alt="Logo" className="size-6.5" />
-                            <h1 className="text-2xl">Scheduler</h1>
+                            <img src="/logo.svg" alt="Logo" className="size-6.5 opacity-80" />
+                            <h1 className="text-2xl font-sans font-semibold tracking-tight">{APP_NAME}</h1>
                         </Link>
                         <p className="text-slate-500 text-sm mt-1">Sign in to your Dashboard</p>
                     </div>
