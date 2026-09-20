@@ -394,15 +394,15 @@ const Scheduler = () => {
       </div >
 
       {/* Queue panels */}
-      <div className="flex-1 min-w-0 flex flex-col gap-6">
+      <div className="flex-1 min-w-0 flex flex-col gap-6 lg:h-[calc(100vh-7rem)] lg:overflow-y-auto lg:pr-2 pb-10">
         {/* Drafts */}
-        <div className="flex h-80 shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white">
-          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100">
+        <div className="flex max-h-96 flex-col flex-none overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100 shrink-0">
             <PencilIcon className="size-4 text-zinc-500" />
             <h3 className="text-slate-900 text-sm">Drafts</h3>
             <span className="ml-auto text-xs font-bold bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded-full">{drafts.length}</span>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain divide-y divide-slate-50 pb-4">
+          <div className="min-h-0 flex-1 overflow-y-auto divide-y divide-slate-50 pb-4">
             {drafts.length === 0 ? (
               <div className="py-10 text-center text-slate-400 text-sm">No drafts yet</div>
             ) : (
@@ -436,13 +436,13 @@ const Scheduler = () => {
         </div>
 
         {/* Upcoming */}
-        <div className="flex h-80 shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white">
-          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100">
+        <div className="flex max-h-96 flex-col flex-none overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100 shrink-0">
             <CalendarDaysIcon className="size-4 text-zinc-500" />
             <h3 className="text-slate-900 text-sm">Upcoming</h3>
             <span className="ml-auto text-xs font-bold bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded-full">{scheduled.length}</span>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain divide-y divide-slate-50 pb-4">
+          <div className="min-h-0 flex-1 overflow-y-auto divide-y divide-slate-50 pb-4">
             {scheduled.length === 0 ? (
               <div className="py-10 text-center text-slate-400 text-sm">No posts scheduled yet</div>
             ) : (
@@ -476,14 +476,14 @@ const Scheduler = () => {
         </div>
 
         {/* Failed */}
-        <div className="flex-none overflow-hidden rounded-2xl border border-red-200 bg-red-50/30">
-          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-red-100">
+        <div className="flex max-h-96 flex-col flex-none overflow-hidden rounded-2xl border border-red-200 bg-red-50/30">
+          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-red-100 shrink-0">
             <AlertTriangleIcon className="size-4 text-red-500" />
             <h3 className="text-slate-900 text-sm">Failed</h3>
             <span className="ml-auto text-xs font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded-full">{failed.length}</span>
           </div>
 
-          <div className="divide-y divide-red-100">
+          <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-red-100">
             {failed.length === 0 ? (
               <div className="py-10 text-center text-slate-400 text-sm">No failed posts</div>
             ) : (
@@ -522,13 +522,13 @@ const Scheduler = () => {
         </div>
 
         {/* Published */}
-        <div className="flex-none overflow-hidden rounded-2xl border border-slate-200 bg-white">
-          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100">
+        <div className="flex max-h-96 flex-col flex-none overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-slate-100 shrink-0">
             <SendIcon className="size-4 text-zinc-500" />
             <h3 className="text-slate-900 text-sm">Published</h3>
             <span className="ml-auto text-xs font-bold bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded-full">{published.length}</span>
           </div>
-          <div className="divide-y divide-slate-50">
+          <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-slate-50">
             {published.length === 0 ? (
               <div className="py-10 text-center text-slate-400 text-sm">No posts published yet</div>
             ) : (
